@@ -37,7 +37,9 @@
 #include "Rendering/Textures/3DOTextureHandler.h"
 #include "Rendering/Textures/S3OTextureHandler.h"
 #include "Map/BaseGroundDrawer.h"
+#include "Map/Ground.h"
 #include "Map/ReadMap.h"
+#include "Map/SMF/SMFGroundDrawer.h"
 #include "Game/Camera.h"
 #include "Game/SelectedUnitsHandler.h"
 #include "Game/Game.h"
@@ -386,6 +388,95 @@ void CWorldDrawer::DrawOpaqueObjects() const
 	}
 }
 
+// Every water renderer draws a surface at the water plane level, displaced by at most
+// WATER_MAX_DISPLACEMENT elmos (BumpWater: +-3, AdvWater: 0.11, BasicWater: 0), except
+// DynWater whose simulated waves have no fixed bound. Such a surface can only produce a
+// fragment that passes the depth test where it is above the drawn terrain: over heightmap
+// patches whose (unsynced) minimum height is below the surface, or outside the map. The
+// terrain mesh over a patch never goes below the patch's minimum height (its vertices are
+// heightmap samples of that patch), and a point below the terrain is occluded as long as
+// the terrain is drawn filled and the camera is above it. If no such region intersects the
+// camera frustum, the reflection/refraction passes and the water surface cannot change the
+// image, so they are skipped.
+static bool IsWaterInView(const CCamera* cam)
+{
+	RECOIL_DETAILED_TRACY_ZONE;
+	constexpr float WATER_MAX_DISPLACEMENT = 16.0f;
+	constexpr float waterBot = CGround::GetWaterPlaneLevel() - WATER_MAX_DISPLACEMENT;
+	constexpr float waterTop = CGround::GetWaterPlaneLevel() + WATER_MAX_DISPLACEMENT;
+	constexpr float farDist = 1.0e6f; // > CGlobalRendering::MAX_VIEW_RANGE
+	constexpr float margin = SQUARE_SIZE;
+	constexpr int patchSize = CReadMap::PATCH_SIZE;
+	constexpr float wsEdge = patchSize * SQUARE_SIZE;
+
+	if (IWater::GetWater()->GetID() == IWater::WATER_RENDERER_DYNAMIC)
+		return true;
+
+	// terrain has to occlude what lies below it: drawn, filled, without holes (voidGround or
+	// a Lua map shader that might discard or displace)
+	if (!globalRendering->drawGround || mapRendering->voidGround)
+		return true;
+
+	{
+		const auto* gd = dynamic_cast<const CSMFGroundDrawer*>(readMap->GetGroundDrawer());
+
+		if (gd == nullptr || gd->WireFrameMode() || gd->HaveLuaRenderState())
+			return true;
+	}
+
+	if ((mapDims.mapx % patchSize) != 0 || (mapDims.mapy % patchSize) != 0)
+		return true;
+
+	const float mapX = mapDims.mapx * SQUARE_SIZE;
+	const float mapZ = mapDims.mapy * SQUARE_SIZE;
+	const int numPatchesX = mapDims.mapx / patchSize;
+	const int numPatchesZ = mapDims.mapy / patchSize;
+
+	{
+		// the camera has to be above the terrain under it (and over the map)
+		const float3& pos = cam->GetPos();
+
+		if (pos.x < 0.0f || pos.z < 0.0f || pos.x >= mapX || pos.z >= mapZ)
+			return true;
+
+		const int px = std::min(static_cast<int>(pos.x / wsEdge), numPatchesX - 1);
+		const int pz = std::min(static_cast<int>(pos.z / wsEdge), numPatchesZ - 1);
+
+		if (pos.y <= readMap->GetUnsyncedHeightInfo(px, pz).y)
+			return true;
+	}
+
+	// outside the map: endless ocean or a plane up to the horizon
+	const AABB outside[4] = {
+		{{   -farDist, waterBot,    -farDist}, {         0.0f, waterTop, mapZ + farDist}},
+		{{       mapX, waterBot,    -farDist}, {mapX + farDist, waterTop, mapZ + farDist}},
+		{{       0.0f, waterBot,    -farDist}, {         mapX, waterTop,           0.0f}},
+		{{       0.0f, waterBot,        mapZ}, {         mapX, waterTop, mapZ + farDist}},
+	};
+
+	for (const AABB& aabb: outside) {
+		if (cam->InView(aabb))
+			return true;
+	}
+
+	for (int z = 0; z < numPatchesZ; ++z) {
+		for (int x = 0; x < numPatchesX; ++x) {
+			if (readMap->GetUnsyncedHeightInfo(x, z).x >= waterTop)
+				continue;
+
+			const AABB aabb{
+				{ x      * wsEdge - margin, waterBot,  z      * wsEdge - margin},
+				{(x + 1) * wsEdge + margin, waterTop, (z + 1) * wsEdge + margin}
+			};
+
+			if (cam->InView(aabb))
+				return true;
+		}
+	}
+
+	return false;
+}
+
 void CWorldDrawer::DrawAlphaObjects() const
 {
 	// transparent objects
@@ -431,12 +522,15 @@ void CWorldDrawer::DrawAlphaObjects() const
 		SCOPED_TIMER("Draw::World::Water");
 		SCOPED_GL_DEBUGGROUP("Draw::World::Water");
 
-		const auto& water = IWater::GetWater();
-		{
-			ZoneScopedN("Draw::World::Water::UpdateWater");
-			water->UpdateWater(game);
+		// the below/above-water split of the alpha objects and DrawWaterPost stay as they are
+		if (IsWaterInView(camera)) {
+			const auto& water = IWater::GetWater();
+			{
+				ZoneScopedN("Draw::World::Water::UpdateWater");
+				water->UpdateWater(game);
+			}
+			water->Draw();
 		}
-		water->Draw();
 		eventHandler.DrawWaterPost();
 	}
 

@@ -73,12 +73,13 @@ public:
 	IMeshDrawer* GetMeshDrawer() { return meshDrawer; }
 	IMeshDrawer* SwitchMeshDrawer(int wantedMode = -1);
 
+	bool HaveLuaRenderState() const;
+
 private:
 	ISMFRenderState* SelectRenderState(const DrawPass::e& drawPass);
 
 	inline void DrawBorder(const DrawPass::e drawPass);
 
-	bool HaveLuaRenderState() const;
 	bool UpdateGeometryBuffer(bool init);
 
 	bool alwaysDispatchEvents = false;
