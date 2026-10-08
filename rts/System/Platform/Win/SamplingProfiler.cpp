@@ -66,6 +66,10 @@
  *   3 LUASTATE   u64 globalState, u8 synced, u8[3] pad, u32 nameLen, char name[]
  *   4 LUAFUNC    u32 id, i32 linedefined, i32 lastlinedefined, u32 sourceFullLen,
  *                u64 proto, u32 srcLen, char source[srcLen] (first <=128 bytes)
+ *   5 SYMBOL     u64 addr, u64 symAddr, u32 nameLen, char name[nameLen]
+ *                nearest preceding *exported* name for an address seen in a frame
+ *                outside the main executable (system/driver DLLs have no DWARF);
+ *                approximate: non-exported functions get their predecessor's name
  *   6 TRAILER    u64 endQpc, u64 samples, u64 drops, u64 suspendFailures,
  *                u64 contextFailures, u64 missedTicks, u64 suspendMinTicks,
  *                u64 suspendMaxTicks, u64 suspendSumTicks, u64 workMaxTicks,
@@ -101,6 +105,8 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 
@@ -131,6 +137,7 @@ constexpr uint32_t REC_MODULE   = 1;
 constexpr uint32_t REC_SAMPLE   = 2;
 constexpr uint32_t REC_LUASTATE = 3;
 constexpr uint32_t REC_LUAFUNC  = 4;
+constexpr uint32_t REC_SYMBOL   = 5;
 constexpr uint32_t REC_TRAILER  = 6;
 
 constexpr uint32_t HDR_FLAG_HIGHRES_TIMER = 1u << 0;
@@ -145,6 +152,7 @@ constexpr uint32_t LUA_FUNC_BUCKETS  = 65536;       // power of two, 2x MAX_LUA_
 constexpr uint32_t LUA_FUNC_OVERFLOW = 0xFFFFFFFFu;
 constexpr size_t   LUA_SOURCE_MAX    = 128;
 constexpr size_t   LUA_FUNC_SPAN_MAX = 4096;        // read all frame functions at once if this close
+constexpr size_t   MAX_FOREIGN_ADDRS = 1 << 20;     // unique non-exe addresses symbolized at stop
 
 enum LuaFrameKind : uint8_t {
 	LF_LUA        = 1,
@@ -486,6 +494,7 @@ struct Session {
 	// output
 	std::string path;
 	OutFile out; // writer thread while running, then Stop()
+	std::unordered_set<uint64_t> foreignAddrs; // writer thread, then Stop()
 
 	// stats (sampler thread; read by others only after it exited, except relaxed atomics)
 	std::atomic<uint64_t> drops{0};
@@ -846,6 +855,15 @@ void WriteSample(Session& s, SlotHead* slot)
 	s.out.Put(&rec, sizeof(rec));
 	s.out.Put(Session::Frames(slot), rec.nframes * sizeof(uint64_t));
 	s.out.Put(slot->lua, rec.nlua * sizeof(LuaFrameRec));
+
+	const uint64_t* frames = Session::Frames(slot);
+
+	for (uint16_t i = 0; i < rec.nframes; ++i) {
+		if ((frames[i] - s.exeBase) < s.exeSize)
+			continue;
+		if (s.foreignAddrs.size() < MAX_FOREIGN_ADDRS)
+			s.foreignAddrs.insert(frames[i]);
+	}
 }
 
 void DrainRing(Session& s)
@@ -976,6 +994,118 @@ uint64_t ThreadCpu100ns(HANDLE thread)
 	if (thread == nullptr || !GetThreadTimes(thread, &c, &e, &k, &u))
 		return 0;
 	return FileTimeTo100ns(k) + FileTimeTo100ns(u);
+}
+
+// Nearest exported symbol <= addr, from the in-memory export directory of the
+// module containing it. Only used at Stop(), from a normal thread.
+class ExportSymbolizer {
+public:
+	~ExportSymbolizer() {
+		for (const auto& m: modules) {
+			if (m.first != nullptr)
+				FreeLibrary(m.first);
+		}
+	}
+
+	bool Lookup(uint64_t addr, uint64_t* symAddr, std::string* name) {
+		HMODULE mod = nullptr;
+		// takes a reference, so the module cannot be unloaded while we parse it
+		if (!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, reinterpret_cast<LPCWSTR>(addr), &mod))
+			return false;
+
+		auto it = modules.find(mod);
+		if (it == modules.end()) {
+			it = modules.emplace(mod, Parse(mod)).first;
+		} else {
+			FreeLibrary(mod); // already holding one reference
+		}
+
+		const std::vector<Export>& exports = it->second;
+		const uint32_t rva = static_cast<uint32_t>(addr - reinterpret_cast<uintptr_t>(mod));
+		auto e = std::upper_bound(exports.begin(), exports.end(), rva, [](uint32_t r, const Export& x) { return r < x.rva; });
+
+		if (e == exports.begin())
+			return false;
+
+		--e;
+		*symAddr = reinterpret_cast<uintptr_t>(mod) + e->rva;
+		*name = e->name;
+		return true;
+	}
+
+private:
+	struct Export {
+		uint32_t rva;
+		const char* name;
+	};
+
+	static std::vector<Export> Parse(HMODULE mod) {
+		std::vector<Export> out;
+		const uint8_t* base = reinterpret_cast<const uint8_t*>(mod);
+		const IMAGE_DOS_HEADER* dos = reinterpret_cast<const IMAGE_DOS_HEADER*>(base);
+
+		if (dos->e_magic != IMAGE_DOS_SIGNATURE)
+			return out;
+
+		const IMAGE_NT_HEADERS64* nt = reinterpret_cast<const IMAGE_NT_HEADERS64*>(base + dos->e_lfanew);
+
+		if (nt->Signature != IMAGE_NT_SIGNATURE || nt->OptionalHeader.Magic != IMAGE_NT_OPTIONAL_HDR64_MAGIC)
+			return out;
+		if (nt->OptionalHeader.NumberOfRvaAndSizes <= IMAGE_DIRECTORY_ENTRY_EXPORT)
+			return out;
+
+		const IMAGE_DATA_DIRECTORY& dir = nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT];
+
+		if (dir.VirtualAddress == 0 || dir.Size < sizeof(IMAGE_EXPORT_DIRECTORY))
+			return out;
+
+		const IMAGE_EXPORT_DIRECTORY* ed = reinterpret_cast<const IMAGE_EXPORT_DIRECTORY*>(base + dir.VirtualAddress);
+		const DWORD* funcs = reinterpret_cast<const DWORD*>(base + ed->AddressOfFunctions);
+		const DWORD* names = reinterpret_cast<const DWORD*>(base + ed->AddressOfNames);
+		const WORD* ordinals = reinterpret_cast<const WORD*>(base + ed->AddressOfNameOrdinals);
+
+		out.reserve(ed->NumberOfNames);
+
+		for (DWORD i = 0; i < ed->NumberOfNames; ++i) {
+			if (ordinals[i] >= ed->NumberOfFunctions)
+				continue;
+
+			const DWORD rva = funcs[ordinals[i]];
+
+			// forwarders point into the export directory itself
+			if (rva == 0 || (rva >= dir.VirtualAddress && rva < dir.VirtualAddress + dir.Size))
+				continue;
+
+			out.push_back({rva, reinterpret_cast<const char*>(base + names[i])});
+		}
+
+		std::sort(out.begin(), out.end(), [](const Export& a, const Export& b) { return a.rva < b.rva; });
+		return out;
+	}
+
+	std::unordered_map<HMODULE, std::vector<Export>> modules;
+};
+
+void WriteSymbols(Session& s)
+{
+	ExportSymbolizer symbolizer;
+	std::vector<uint8_t> payload;
+	std::string name;
+
+	for (const uint64_t addr: s.foreignAddrs) {
+		uint64_t symAddr = 0;
+
+		if (!symbolizer.Lookup(addr, &symAddr, &name))
+			continue;
+
+		const uint32_t len = uint32_t(name.size());
+		payload.resize(20 + len);
+		std::memcpy(payload.data() +  0, &addr, 8);
+		std::memcpy(payload.data() +  8, &symAddr, 8);
+		std::memcpy(payload.data() + 16, &len, 4);
+		std::memcpy(payload.data() + 20, name.data(), len);
+		s.out.Record(REC_SYMBOL, payload.data(), uint32_t(payload.size()));
+	}
 }
 
 void DestroySession(Session* s)
@@ -1224,6 +1354,8 @@ bool Stop()
 		put(e.src, e.srcLen);
 		s.out.Record(REC_LUAFUNC, payload.data(), uint32_t(payload.size()));
 	}
+
+	WriteSymbols(s);
 
 	const uint64_t samples = s.head.load();
 	TrailerRec tr = {};
