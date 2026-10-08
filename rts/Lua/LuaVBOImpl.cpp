@@ -1,3 +1,5 @@
+/* This file is part of the Spring engine (GPL v2 or later), see LICENSE.html */
+
 #include "LuaVBOImpl.h"
 
 #include <unordered_map>
@@ -115,6 +117,7 @@ inline void LuaVBOImpl::InstanceBufferCheckAndFormatCheck(int attrID, const char
  */
 void LuaVBOImpl::Delete()
 {
+	++definitionRevision;
 	//safe to call multiple times
 	if (vboOwner)
 		spring::SafeDelete(vbo);
@@ -545,6 +548,7 @@ void LuaVBOImpl::Define(const int elementsCount, const sol::optional<sol::object
 		LuaUtils::SolLuaError("[LuaVBOImpl::%s] Elements count cannot be <= 0", __func__);
 	}
 
+	++definitionRevision;
 	this->elementsCount = elementsCount;
 
 	const auto defineBufferFunc = [this](const sol::object& attribDefArg) {
@@ -818,6 +822,7 @@ void LuaVBOImpl::UpdateModelsVBOElementCount()
 */
 size_t LuaVBOImpl::ModelsVBOImpl()
 {
+	++definitionRevision;
 	const auto engineVertAttribDefFunc = [this]() {
 		// float3 pos
 		this->bufferAttribDefs[0] = {
