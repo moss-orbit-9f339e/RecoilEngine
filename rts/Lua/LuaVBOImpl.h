@@ -1,7 +1,6 @@
 /* This file is part of the Spring engine (GPL v2 or later), see LICENSE.html */
 
-#ifndef LUA_VBO_IMPL_H
-#define LUA_VBO_IMPL_H
+#pragma once
 
 #include <map>
 #include <vector>
@@ -140,6 +139,7 @@ private:
 	uint32_t elemSizeInBytes;
 	uint32_t bufferSizeInBytes;
 
+	uint64_t definitionRevision = 0;
 	VBO* vbo = nullptr;
 	bool vboOwner;
 
@@ -160,7 +160,3 @@ private:
 	static constexpr GLenum DEFAULT_BUFF_ATTR_TYPE = GL_FLOAT_VEC4;
 	static constexpr GLenum DEFAULT_INDX_ATTR_TYPE = GL_UNSIGNED_SHORT;
 };
-
-
-
-#endif //LUA_VBO_IMPL_H

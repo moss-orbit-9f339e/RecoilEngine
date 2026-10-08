@@ -1,7 +1,6 @@
 /* This file is part of the Spring engine (GPL v2 or later), see LICENSE.html */
 
-#ifndef LUA_VAO_IMPL_H
-#define LUA_VAO_IMPL_H
+#pragma once
 
 #include <map>
 #include <string>
@@ -91,12 +90,16 @@ private:
 	std::shared_ptr<LuaVBOImpl> instLuaVBO;
 	std::shared_ptr<LuaVBOImpl> indxLuaVBO;
 
-	uint32_t oldVertVBOId = 0;
-	uint32_t oldInstVBOId = 0;
-	uint32_t oldIndxVBOId = 0;
+	struct BufferState {
+		uint32_t id = 0;
+		uint64_t definitionRevision = 0;
+		size_t size = 0;
+		bool operator==(const BufferState&) const = default;
+	};
+	BufferState oldVertBuffer;
+	BufferState oldInstBuffer;
+	BufferState oldIndxBuffer;
 
 	uint32_t baseInstance;
 	std::vector<SDrawElementsIndirectCommand> submitCmds;
 };
-
-#endif //LUA_VAO_IMPL_H
