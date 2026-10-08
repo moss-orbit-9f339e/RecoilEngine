@@ -109,6 +109,7 @@
 #include "System/Sound/ISound.h"
 #include "System/Sound/ISoundChannels.h"
 #include "System/Sync/DumpState.h"
+#include "System/Platform/SamplingProfiler.h"
 
 #include <SDL_events.h>
 #include <SDL_video.h>
@@ -3916,6 +3917,55 @@ public:
 
 
 
+#ifdef RECOIL_SAMPLING_PROFILER
+class SamplerActionExecutor : public IUnsyncedActionExecutor {
+public:
+	SamplerActionExecutor() : IUnsyncedActionExecutor(
+		"Sampler",
+		"Main-thread sampling profiler (x86-64 Windows); each session writes sampling-*.bin to the write dir",
+		false,
+		{
+			{"start [intervalUs]", "Start sampling (interval defaults to the SamplingProfiler config value)"},
+			{"stop", "Stop sampling and write the file (path is logged)"},
+			{"status", "Print whether a session is running"},
+		}
+	) {
+	}
+
+	bool Execute(const UnsyncedAction& action) const final {
+		const auto args = CSimpleParser::Tokenize(action.GetArgs());
+		const std::string cmd = args.empty()? std::string("status"): StringToLower(args[0]);
+
+		switch (hashString(cmd.c_str())) {
+			case hashString("start"): {
+				bool parseFailure = false;
+				const int intervalUs = (args.size() > 1)? StringToInt(args[1], &parseFailure): 0;
+
+				if (parseFailure || intervalUs < 0) {
+					LOG_L(L_WARNING, "/%s start: invalid interval \"%s\" (microseconds expected)", GetCommand().c_str(), args[1].c_str());
+					return true;
+				}
+
+				SamplingProfiler::Start(intervalUs);
+			} break;
+			case hashString("stop"): {
+				SamplingProfiler::Stop();
+			} break;
+			case hashString("status"): {
+				LOG("[SamplingProfiler] %s", SamplingProfiler::StatusLine().c_str());
+			} break;
+			default: {
+				LOG_L(L_WARNING, "/%s: unknown argument \"%s\" (use start [intervalUs], stop or status)", GetCommand().c_str(), cmd.c_str());
+			} break;
+		}
+
+		return true;
+	}
+};
+#endif
+
+
+
 class RedirectToSyncedActionExecutor : public IUnsyncedActionExecutor {
 public:
 	RedirectToSyncedActionExecutor(const std::string& command): IUnsyncedActionExecutor(
@@ -4247,6 +4297,9 @@ void UnsyncedGameCommands::AddDefaultActionExecutors()
 	AddActionExecutor(AllocActionExecutor<ReloadTexturesActionExecutor>());
 	AddActionExecutor(AllocActionExecutor<DumpAtlasActionExecutor>());
 	AddActionExecutor(AllocActionExecutor<DebugInfoActionExecutor>());
+#ifdef RECOIL_SAMPLING_PROFILER
+	AddActionExecutor(AllocActionExecutor<SamplerActionExecutor>());
+#endif
 
 	// XXX are these redirects really required?
 	AddActionExecutor(AllocActionExecutor<RedirectToSyncedActionExecutor>("ATM"));

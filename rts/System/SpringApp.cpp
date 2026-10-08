@@ -93,6 +93,7 @@
 #include "System/Log/DefaultFilter.h"
 #include "System/LogOutput.h"
 #include "System/Platform/errorhandler.h"
+#include "System/Platform/SamplingProfiler.h"
 #include "System/Platform/ConsoleInit.hpp"
 #include "System/Platform/CrashHandler.h"
 #include "System/Platform/Threading.h"
@@ -1004,6 +1005,8 @@ void SpringApp::Kill(bool fromRun)
 	killedCount += 1;
 
 	LOG("[SpringApp::%s][1] fromRun=%d", __func__, fromRun);
+	// write an open profiling session while Lua handles (state names) still exist
+	SamplingProfiler::Shutdown();
 	ThreadPool::SetThreadCount(0);
 	LOG("[SpringApp::%s][2]", __func__);
 	LuaVFSDownload::Free(true);
