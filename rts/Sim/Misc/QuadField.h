@@ -87,6 +87,8 @@ public:
 	void PostLoad();
 
 	void GetQuads(QuadFieldQuery& qfq, float3 pos, float radius);
+	/// true if GetQuads(qfq, pos, radius) returns every quad, 0 to numQuadsX * numQuadsZ - 1
+	bool QuadsCoverAll(float3 pos, float radius) const;
 	void GetQuadsRectangle(QuadFieldQuery& qfq, const float3& mins, const float3& maxs);
 	void GetQuadsOnRay(QuadFieldQuery& qfq, const float3& start, const float3& dir, float length);
 	void GetQuadsOnWideRay(QuadFieldQuery& qfq, const float3& start, const float3& dir, float length, float width);
@@ -152,6 +154,10 @@ public:
 	 * checks coarse per-allyteam counts, so may also return true otherwise
 	 */
 	bool MayHaveEnemyUnits(float3 pos, float radius, int allyTeam) const;
+
+	// Visit in GetQuads order, skipping cells with no units of this allyteam.
+	template<typename TVisitQuad>
+	void ForEachQuadWithTeamUnits(int allyTeam, TVisitQuad&& visitQuad) const;
 
 	bool InsertUnitIf(CUnit* unit, const float3& wpos);
 	bool RemoveUnitIf(CUnit* unit, const float3& wpos);
@@ -239,6 +245,8 @@ private:
 	int2 WorldPosToQuadField(const float3 p) const;
 	int WorldPosToQuadFieldIdx(const float3 p) const;
 
+	bool QuadCenterInRange(const float3& pos, float maxSqLength, int x, int z) const;
+
 	int CellUnitsIndex(int quadIdx, int allyTeam) const;
 	void AddTeamUnit(int quadIdx, CUnit* unit);
 	void EraseTeamUnit(int quadIdx, CUnit* unit);
@@ -251,6 +259,7 @@ private:
 	std::vector<Quad> baseQuads;
 
 	// number of Quad::teamUnits entries per (cell, allyteam), for MayHaveEnemyUnits
+	// and ForEachQuadWithTeamUnits; may count too many but never too few
 	std::vector<int> allyTeamCellUnits;
 	int numCellsX = 0;
 	int numAllyTeams = 0;
@@ -272,6 +281,27 @@ private:
 };
 
 extern CQuadField quadField;
+
+
+template<typename TVisitQuad>
+void CQuadField::ForEachQuadWithTeamUnits(int allyTeam, TVisitQuad&& visitQuad) const
+{
+	for (int z = 0; z < numQuadsZ; ++z) {
+		const int* rowCellUnits = &allyTeamCellUnits[(z / CELL_QUADS) * numCellsX * numAllyTeams + allyTeam];
+
+		for (int cellX = 0; cellX < numCellsX; ++cellX) {
+			if (rowCellUnits[cellX * numAllyTeams] == 0)
+				continue;
+
+			const int minX = cellX * CELL_QUADS;
+			const int maxX = std::min(minX + CELL_QUADS, numQuadsX);
+
+			for (int x = minX; x < maxX; ++x) {
+				visitQuad(z * numQuadsX + x);
+			}
+		}
+	}
+}
 
 
 struct QuadFieldQuery {

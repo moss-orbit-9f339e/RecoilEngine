@@ -149,6 +149,36 @@ int CQuadField::WorldPosToQuadFieldIdx(const float3 p) const
 
 
 #ifndef UNIT_TEST // ClampInBounds() is not linked
+bool CQuadField::QuadCenterInRange(const float3& pos, float maxSqLength, int x, int z) const
+{
+	const float3 quadPos = float3(x * quadSizeX + quadSizeX * 0.5f, 0, z * quadSizeZ + quadSizeZ * 0.5f);
+	return (pos.SqDistance2D(quadPos) < maxSqLength);
+}
+
+bool CQuadField::QuadsCoverAll(float3 pos, float radius) const
+{
+	RECOIL_DETAILED_TRACY_ZONE;
+	// same clamping, index range and distance test as GetQuads
+	pos.AssertNaNs();
+	pos.ClampInBounds();
+
+	const int2 min = WorldPosToQuadField(pos - radius);
+	const int2 max = WorldPosToQuadField(pos + radius);
+
+	if (min.x != 0 || min.y != 0 || max.x != numQuadsX - 1 || max.y != numQuadsZ - 1)
+		return false;
+
+	// qsx and qsz are always equal
+	const float maxSqLength = (radius + quadSizeX * 0.72f) * (radius + quadSizeZ * 0.72f);
+
+	// The farthest quad center is a corner; keep GetQuads' strict distance test.
+	return
+		QuadCenterInRange(pos, maxSqLength,             0,             0) &&
+		QuadCenterInRange(pos, maxSqLength, numQuadsX - 1,             0) &&
+		QuadCenterInRange(pos, maxSqLength,             0, numQuadsZ - 1) &&
+		QuadCenterInRange(pos, maxSqLength, numQuadsX - 1, numQuadsZ - 1);
+}
+
 void CQuadField::GetQuads(QuadFieldQuery& qfq, float3 pos, float radius)
 {
 	RECOIL_DETAILED_TRACY_ZONE;
@@ -169,8 +199,7 @@ void CQuadField::GetQuads(QuadFieldQuery& qfq, float3 pos, float radius)
 		for (int x = min.x; x <= max.x; ++x) {
 			assert(x < numQuadsX);
 			assert(z < numQuadsZ);
-			const float3 quadPos = float3(x * quadSizeX + quadSizeX * 0.5f, 0, z * quadSizeZ + quadSizeZ * 0.5f);
-			if (pos.SqDistance2D(quadPos) < maxSqLength) {
+			if (QuadCenterInRange(pos, maxSqLength, x, z)) {
 				qfq.quads->push_back(z * numQuadsX + x);
 			}
 		}

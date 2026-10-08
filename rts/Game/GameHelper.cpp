@@ -390,14 +390,20 @@ template<typename TFilter, typename TQuery>
 static inline void QueryUnits(TFilter filter, TQuery& query)
 {
 	QuadFieldQuery qfQuery;
-	quadField.GetQuads(qfQuery, query.pos, query.radius);
+
+	// Whole-map searches can skip empty cells without building a quad list.
+	const bool allQuads = quadField.QuadsCoverAll(query.pos, query.radius);
+
+	if (!allQuads)
+		quadField.GetQuads(qfQuery, query.pos, query.radius);
+
 	const int tempNum = gs->GetTempNum();
 
 	for (int t = 0; t < teamHandler.ActiveAllyTeams(); ++t) { //FIXME
 		if (!filter.Team(t))
 			continue;
 
-		for (const int qi: *qfQuery.quads) {
+		const auto VisitQuad = [&](const int qi) {
 			const auto& allyTeamUnits = quadField.GetQuad(qi).teamUnits[t];
 
 			for (CUnit* u: allyTeamUnits) {
@@ -415,6 +421,15 @@ static inline void QueryUnits(TFilter filter, TQuery& query)
 					query.AddUnit(u);
 				}
 			}
+		};
+
+		if (allQuads) {
+			quadField.ForEachQuadWithTeamUnits(t, VisitQuad);
+			continue;
+		}
+
+		for (const int qi: *qfQuery.quads) {
+			VisitQuad(qi);
 		}
 	}
 }
