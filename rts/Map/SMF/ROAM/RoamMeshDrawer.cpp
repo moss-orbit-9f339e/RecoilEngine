@@ -231,6 +231,41 @@ void CRoamMeshDrawer::Update()
 		// Check if a retessellation is needed
 		//SCOPED_TIMER("ROAM::ComputeVariance");
 
+		// a patch's variance trees depend only on the unsynced heightmap under
+		// it, so bring those of all visible dirty patches up to date here: take
+		// them from the same patch in the other mesh if that one already has
+		// them for the current heightmap, else recompute them (in parallel).
+		// The loop below then finds these patches clean and only has to do the
+		// order-dependent bookkeeping; the trees are the same as computing them
+		// one by one inside that loop
+		const auto& twinPatches = patchMeshGrid[MESH_SHADOW - shadowPass];
+		std::vector<int> dirtyVisiblePatches;
+
+		for (int i = 0; i < numPatches; ++i) {
+			Patch& p = patches[i];
+
+			if (!p.IsVisible(cam) || !p.IsDirty())
+				continue;
+
+			// here we can do incremental retesselation?
+			patchesToTesselate[i] = true;
+
+			if (p.CopyVariance(twinPatches[i]))
+				continue;
+
+			dirtyVisiblePatches.push_back(i);
+		}
+
+		if (dirtyVisiblePatches.size() > 1) {
+			for_mt(0, dirtyVisiblePatches.size(), [&patches, &dirtyVisiblePatches](const int j) {
+				patches[dirtyVisiblePatches[j]].ComputeVariance();
+			});
+		} else {
+			for (const int i: dirtyVisiblePatches) {
+				patches[i].ComputeVariance();
+			}
+		}
+
 		for (int i = 0; i < numPatches; ++i) {
 			//FIXME multithread? don't retessellate on small heightmap changes?
 			Patch& p = patches[i];
@@ -269,12 +304,9 @@ void CRoamMeshDrawer::Update()
 			// second case, a patch entered visibility:
 			if (isVisibleNow) {
 				numPatchesVisible++;
-				// if it was dirty(had heightmap change) then recompute variances.
-				if (p.IsDirty()) {
-					p.ComputeVariance();
-					// here we can do incremental retesselation?
-					patchesToTesselate[i] = true;
-				}
+				// if it was dirty (had heightmap change) its variances were brought
+				// up to date above and it is marked for retesselation
+				assert(!p.IsDirty());
 
 			#if TESSELATION_DEBUG
 				if (!wasVisible)

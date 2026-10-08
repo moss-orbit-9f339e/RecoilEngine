@@ -183,6 +183,7 @@ void Patch::UpdateHeightMap(const SRectangle& rect)
 	RECOIL_DETAILED_TRACY_ZONE;
 	midPos.y = readMap->GetUnsyncedHeightInfo(coors.x / PATCH_SIZE, coors.y / PATCH_SIZE).z;
 	isDirty = true;
+	numHeightMapUpdates += 1;
 }
 
 
@@ -587,6 +588,25 @@ void Patch::ComputeVariance()
 
 	// Clear the dirty flag for this patch
 	isDirty = false;
+}
+
+bool Patch::CopyVariance(const Patch& twin)
+{
+	RECOIL_DETAILED_TRACY_ZONE;
+	assert(coors == twin.coors);
+
+	// the trees are a function of the unsynced heightmap under the patch only;
+	// <twin> computed them after the same UpdateHeightMap calls as this patch
+	// has seen and none since (else it would be dirty again), so recomputing
+	// here would read the same heights and produce the same trees
+	if (twin.isDirty || twin.numHeightMapUpdates != numHeightMapUpdates)
+		return false;
+
+	varianceTrees[0] = twin.varianceTrees[0];
+	varianceTrees[1] = twin.varianceTrees[1];
+
+	isDirty = false;
+	return true;
 }
 
 
