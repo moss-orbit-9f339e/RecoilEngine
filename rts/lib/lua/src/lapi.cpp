@@ -830,7 +830,10 @@ LUA_API int lua_pcall (lua_State *L, int nargs, int nresults, int errfunc) {
   }
   c.func = L->top - (nargs+1);  /* function to be called */
   c.nresults = nresults;
-  status = luaD_pcall(L, f_call, &c, savestack(L, c.func), func);
+  {
+    luai_ActiveStateScope activeScope(L);  /* SPRING: sampling profiler */
+    status = luaD_pcall(L, f_call, &c, savestack(L, c.func), func);
+  }
   adjustresults(L, nresults);
   lua_unlock(L);
   return status;
@@ -911,6 +914,7 @@ LUA_API int  lua_status (lua_State *L) {
 LUA_API int lua_gc (lua_State *L, int what, int data) {
   int res = 0;
   global_State *g;
+  luai_ActiveStateScope activeScope(L);  /* SPRING: sampling profiler */
   lua_lock(L);
   g = G(L);
   switch (what) {

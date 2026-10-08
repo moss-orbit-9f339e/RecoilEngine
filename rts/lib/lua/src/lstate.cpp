@@ -24,6 +24,12 @@
 #include "ltm.h"
 
 
+/* SPRING: see lstate.h */
+#ifdef LUAI_TRACK_ACTIVESTATE
+thread_local lua_State *luai_activestate = NULL;
+#endif
+
+
 #define state_size(x)	(sizeof(x) + LUAI_EXTRASPACE)
 #define fromstate(l)	(lua_cast(lu_byte *, (l)) - LUAI_EXTRASPACE)
 #define tostate(l)   (lua_cast(lua_State *, lua_cast(lu_byte *, l) + LUAI_EXTRASPACE))

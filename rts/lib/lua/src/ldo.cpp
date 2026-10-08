@@ -425,7 +425,10 @@ LUA_API int lua_resume (lua_State *L, int nargs) {
   luai_userstateresume(L, nargs);
   lua_assert(L->errfunc == 0);
   L->baseCcalls = ++L->nCcalls;
-  status = luaD_rawrunprotected(L, resume, L->top - nargs);
+  {
+    luai_ActiveStateScope activeScope(L);  /* SPRING: sampling profiler */
+    status = luaD_rawrunprotected(L, resume, L->top - nargs);
+  }
   if (status != 0) {  /* error? */
     L->status = cast_byte(status);  /* mark thread as `dead' */
     luaD_seterrorobj(L, status, L->top);

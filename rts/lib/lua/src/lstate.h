@@ -173,5 +173,39 @@ union GCObject {
 LUAI_FUNC lua_State *luaE_newthread (lua_State *L);
 LUAI_FUNC void luaE_freethread (lua_State *L, lua_State *L1);
 
+
+/*
+** SPRING: the innermost lua_State executing on the calling OS thread, or NULL
+** when the thread is not inside Lua. Set and restored (RAII, so also on error
+** unwinding) by lua_pcall, lua_resume and lua_gc; costs one TLS lookup and two
+** stores per call. Only consumer: the x86-64 Windows sampling profiler
+** (System/Platform/Win/SamplingProfiler.cpp), which takes the address of the
+** main thread's instance once (on the main thread) and reads it while that
+** thread is suspended to find the running Lua stack. Elsewhere the scope is
+** empty and compiles to nothing (keep the condition in sync with
+** System/Platform/SamplingProfiler.h).
+*/
+#if defined(_WIN64) && (defined(_M_X64) || defined(__x86_64__))
+#define LUAI_TRACK_ACTIVESTATE 1
+
+extern thread_local lua_State *luai_activestate;
+
+struct luai_ActiveStateScope {
+  explicit luai_ActiveStateScope (lua_State *L)
+    : slot(&luai_activestate), prev(luai_activestate) { *slot = L; }
+  ~luai_ActiveStateScope () { *slot = prev; }
+
+  luai_ActiveStateScope (const luai_ActiveStateScope&) = delete;
+  luai_ActiveStateScope& operator = (const luai_ActiveStateScope&) = delete;
+
+  lua_State **slot;
+  lua_State *prev;
+};
+#else
+struct luai_ActiveStateScope {
+  explicit luai_ActiveStateScope (lua_State *) {}
+};
+#endif
+
 #endif
 

@@ -533,6 +533,20 @@ endif()
 	add_spring_test(${test_name} "${test_src}" "${test_libs}" "")
 
 ################################################################################
+### SamplingProfilerUnwind (the sampling profiler only exists on x86-64 Windows)
+if (WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8 AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(AMD64|x86_64)$")
+	set(test_name SamplingProfilerUnwind)
+	set(test_src
+			"${CMAKE_CURRENT_SOURCE_DIR}/engine/System/Platform/testSamplingProfilerUnwind.cpp"
+			${test_Common_sources}
+		)
+	set(test_libs
+			""
+		)
+	add_spring_test(${test_name} "${test_src}" "${test_libs}" "")
+endif ()
+
+################################################################################
 ### SerializeLuaState
 	set(test_name SerializeLuaState)
 	set(test_src
