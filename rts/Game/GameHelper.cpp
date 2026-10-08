@@ -42,6 +42,8 @@
 
 #include "System/Misc/TracyDefs.h"
 
+#include <type_traits>
+
 
 static CGameHelper gGameHelper;
 CGameHelper* helper = &gGameHelper;
@@ -375,6 +377,15 @@ void CGameHelper::Explosion(const CExplosionParams& params) {
  * should be implemented in the Query object if desired.
  * (It isn't necessary for e.g. GetClosest** methods.)
  */
+/**
+ * Specialized below for (filter, query) pairs where the query can test the
+ * distance before the filter: the filter must be free of side effects, and
+ * the query must implement AddUnitDistanceFirst(u, filter) with exactly the
+ * same result and calls as (filter.Unit(u) && AddUnit(u)).
+ */
+template<typename TFilter, typename TQuery>
+struct QueryDistanceFirst : std::false_type {};
+
 template<typename TFilter, typename TQuery>
 static inline void QueryUnits(TFilter filter, TQuery& query)
 {
@@ -395,10 +406,14 @@ static inline void QueryUnits(TFilter filter, TQuery& query)
 
 				u->tempNum = tempNum;
 
-				if (!filter.Unit(u))
-					continue;
+				if constexpr (QueryDistanceFirst<TFilter, TQuery>::value) {
+					query.AddUnitDistanceFirst(u, filter);
+				} else {
+					if (!filter.Unit(u))
+						continue;
 
-				query.AddUnit(u);
+					query.AddUnit(u);
+				}
 			}
 		}
 	}
@@ -521,6 +536,25 @@ namespace {
 				}
 			}
 
+			/**
+			 * Same as (filter.Unit(u) && AddUnit(u)) for a filter without side
+			 * effects, but rejects units that cannot become the closest one
+			 * before reading the fields the filter needs (LOS state etc. are
+			 * in other cache lines of CUnit than midPos). The negated test
+			 * rejects NaN distances exactly like AddUnit.
+			 */
+			template<typename TFilter>
+			void AddUnitDistanceFirst(CUnit* u, TFilter& filter) {
+				const float sqDist = (pos - u->midPos).SqLength2D();
+				if (!(sqDist <= closeSqDist))
+					return;
+				if (!filter.Unit(u))
+					return;
+
+				closeSqDist = sqDist;
+				closeUnit = u;
+			}
+
 			CUnit* GetClosestUnit() const { return closeUnit; }
 		};
 
@@ -542,6 +576,19 @@ namespace {
 					closeSqDist = sqDist;
 					closeUnit = u;
 				}
+			}
+
+			/// same as (filter.Unit(u) && AddUnit(u)), IsValidTarget is called for the same units
+			template<typename TFilter>
+			void AddUnitDistanceFirst(CUnit* u, TFilter& filter) {
+				const float sqDist = (pos - u->midPos).SqLength2D();
+				if (!(sqDist <= closeSqDist))
+					return;
+				if (!filter.Unit(u) || !cai->IsValidTarget(u, nullptr))
+					return;
+
+				closeSqDist = sqDist;
+				closeUnit = u;
 			}
 		};
 
@@ -651,6 +698,14 @@ namespace {
 
 	} // end of namespace Query
 } // end of namespace
+
+// filters without side effects (they only read unit and team state) combined
+// with closest-unit queries; exact types only, since queries derived from
+// Query::ClosestUnit may override AddUnit
+template<> struct QueryDistanceFirst<Filter::Friendly     , Query::ClosestUnit       > : std::true_type {};
+template<> struct QueryDistanceFirst<Filter::Enemy_InLos  , Query::ClosestUnit       > : std::true_type {};
+template<> struct QueryDistanceFirst<Filter::EnemyAircraft, Query::ClosestUnit       > : std::true_type {};
+template<> struct QueryDistanceFirst<Filter::Enemy_InLos  , Query::ClosestValidTarget> : std::true_type {};
 
 
 
