@@ -10,6 +10,9 @@
 
 #include "System/EventClient.h"
 #include "System/Misc/RectangleOverlapHandler.h"
+#include "System/float3.h"
+
+#include <array>
 
 
 namespace Shader {
@@ -107,6 +110,15 @@ private:
 
 	Shader::IProgramObject* waterShader;
 	Shader::IProgramObject* blurShader;
+
+	/// the part of the screen-copy textures (texture space, {x0, y0, x1, y1}
+	/// with exclusive upper bounds) the water shader can sample this frame; repeatWrap: the
+	/// texture uses GL_REPEAT instead of GL_CLAMP_TO_EDGE
+	std::array<int, 4> GetScreenCopyRect(bool repeatWrap) const;
+
+	float3 waterMeshMins; ///< world-space AABB of the water plane mesh (y excluding the wave displacement)
+	float3 waterMeshMaxs;
+	std::array<int, 4> shaderViewRect = {-1, -1, -1, -1}; ///< view {pos, size} baked into the water shader
 };
 
 #endif // BUMP_WATER_H
