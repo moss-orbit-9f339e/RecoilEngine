@@ -131,6 +131,9 @@ public:
 
 	bool Tessellate(const float3& camPos, int viewRadius, bool shadowPass);
 	void ComputeVariance();
+	// takes over the variance trees of <twin> (this patch in the other mesh) if they
+	// are up to date for the heightmap this patch is dirty for; returns false if not
+	bool CopyVariance(const Patch& twin);
 
 	void GenerateIndices();
 	void Upload();
@@ -185,6 +188,9 @@ private:
 	// does the variance-tree need to be recalculated for this Patch?
 	bool isTesselated = false;
 	bool isDirty = true;
+	// number of UpdateHeightMap calls so far; the normal and the shadow mesh
+	// receive the same calls, so equal counts mean the same heightmap state
+	uint32_t numHeightMapUpdates = 0;
 	// Did the tesselation tree change from what we have stored in the VBO?
 	bool isChanged = false;
 
