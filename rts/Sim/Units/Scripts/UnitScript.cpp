@@ -228,13 +228,16 @@ void CUnitScript::TickAllAnims(int deltaTime)
 	spring::VectorEraseIfAll(anims, [](const auto& ai) { return ai.done; });
 #if 1
 	// BFS pass
-	std::deque<std::pair<LocalModelPiece*, Transform>> q;
-	q.push_front({ rootPiece, Transform{} });
+	// the queue is reused per thread (TickAllAnims runs inside for_mt), so this
+	// pass does no heap allocations once it has grown to the largest model;
+	// pieces are visited in the same breadth-first order as with a FIFO queue
+	static thread_local std::vector<std::pair<LocalModelPiece*, Transform>> q;
+	q.clear();
+	q.emplace_back(rootPiece, Transform{});
 
-	while (!q.empty()) {
-		// copy
-		auto [lmp, pTra] = q.front();
-		q.pop_front();
+	for (size_t qi = 0; qi < q.size(); ++qi) {
+		// copy (q may reallocate while children are appended below)
+		auto [lmp, pTra] = q[qi];
 
 		if (lmp->GetDirty()) {
 			lmp->SetDirtyRaw(false);
@@ -246,7 +249,7 @@ void CUnitScript::TickAllAnims(int deltaTime)
 		const Transform& modelTra = lmp->GetModelSpaceTransformRaw();
 
 		for (auto* child : lmp->children) {
-			q.push_back({ child, modelTra });
+			q.emplace_back(child, modelTra);
 		}
 	}
 #else
