@@ -55,6 +55,7 @@
 #include "System/Log/ILog.h"
 #include "System/Input/KeyInput.h"
 #include "System/Platform/SDL1_keysym.h"
+#include "System/Platform/SamplingProfiler.h"
 
 
 #include "LuaInclude.h"
@@ -222,6 +223,8 @@ void CLuaHandle::KillLua(bool inFreeHandler)
 	// state to become non-valid so that LoadHandler returns
 	// false and FreeHandler runs next
 	LUA_ERASE_CONTEXT(&D, LUAHANDLE_CONTEXTS[D.synced]);
+	// samples may reference this state; keep its name in the profile
+	SamplingProfiler::NoteLuaState(G(L), GetName(), D.synced);
 	LUA_CLOSE(&L);
 }
 
@@ -2407,6 +2410,26 @@ void CLuaHandle::SetDevMode(bool value)
 		}
 	}
 }
+
+
+#ifdef RECOIL_SAMPLING_PROFILER
+void SamplingProfiler::ReportLuaHandleStates()
+{
+	for (const auto* lcd : LUAHANDLE_CONTEXTS) {
+		for (const auto* lc : *lcd) {
+			if (lc == nullptr || lc->owner == nullptr)
+				continue;
+
+			const lua_State* L = lc->owner->GetLuaState();
+
+			if (L == nullptr)
+				continue;
+
+			SamplingProfiler::NoteLuaState(G(L), lc->owner->GetName(), lc->synced);
+		}
+	}
+}
+#endif
 
 
 /* Toggles between empty table and filling it with lua module functions. 
