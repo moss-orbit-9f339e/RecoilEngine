@@ -112,10 +112,20 @@ static GLuint LoadTexture(const string& filename, const float anisotropy = 0.0f,
 }
 
 
-static TypedRenderBuffer<VA_TYPE_0> GenWaterPlaneBuffer(bool radial)
+static TypedRenderBuffer<VA_TYPE_0> GenWaterPlaneBuffer(bool radial, float3& mins, float3& maxs)
 {
 	RECOIL_DETAILED_TRACY_ZONE;
 	auto rb = TypedRenderBuffer<VA_TYPE_0>(9 * 9 * 6, 0, IStreamBufferConcept::Types::SB_BUFFERDATA);
+
+	// track the exact bounds of what is uploaded
+	mins = float3( std::numeric_limits<float>::max());
+	maxs = float3(-std::numeric_limits<float>::max());
+
+	const auto AddVertex = [&rb, &mins, &maxs](const float3& v) {
+		mins = float3::min(mins, v);
+		maxs = float3::max(maxs, v);
+		rb.AddVertex({ v });
+	};
 
 	if (radial) {
 		// FIXME: more or less copied from SMFGroundDrawer
@@ -136,11 +146,11 @@ static TypedRenderBuffer<VA_TYPE_0> GenWaterPlaneBuffer(bool radial)
 			for (float alpha = 0.0f; (alpha - math::TWOPI) < alphainc; alpha += alphainc) {
 				p.x = r1 * fastmath::sin(alpha) + 2 * xsize;
 				p.z = r1 * fastmath::cos(alpha) + 2 * ysize;
-				rb.AddVertex({ p });
+				AddVertex(p);
 
 				p.x = r2 * fastmath::sin(alpha) + 2 * xsize;
 				p.z = r2 * fastmath::cos(alpha) + 2 * ysize;
-				rb.AddVertex({ p });
+				AddVertex(p);
 			}
 		}
 	}
@@ -155,13 +165,13 @@ static TypedRenderBuffer<VA_TYPE_0> GenWaterPlaneBuffer(bool radial)
 				const float3 v2{ (x + 1) * (mapX / 9.0f), 0.0f, (z + 0) * (mapZ / 9.0f) };
 				const float3 v3{ (x + 1) * (mapX / 9.0f), 0.0f, (z + 1) * (mapZ / 9.0f) };
 
-				rb.AddVertex({ v0 });
-				rb.AddVertex({ v1 });
-				rb.AddVertex({ v2 });
+				AddVertex(v0);
+				AddVertex(v1);
+				AddVertex(v2);
 
-				rb.AddVertex({ v1 });
-				rb.AddVertex({ v3 });
-				rb.AddVertex({ v2 });
+				AddVertex(v1);
+				AddVertex(v3);
+				AddVertex(v2);
 			}
 		}
 	}
@@ -426,6 +436,9 @@ void CBumpWater::InitResources(bool loadShader)
 	GLSLDefineConstf2(definitions, "ScreenTextureSizeInverse",  1.0f / screenTextureX, 1.0f / screenTextureY);
 	GLSLDefineConstf2(definitions, "ViewPos",                   globalRendering->viewPosX, globalRendering->viewPosY);
 
+	// remembered for GetScreenCopyRect (the shader's screen-space constants)
+	shaderViewRect = {globalRendering->viewPosX, globalRendering->viewPosY, globalRendering->viewSizeX, globalRendering->viewSizeY};
+
 	GLSLDefineConstf4(definitions, "SurfaceColor",   waterRendering->surfaceColor*0.4, waterRendering->surfaceAlpha );
 	GLSLDefineConstf4(definitions, "PlaneColor",     waterRendering->planeColor*0.4, waterRendering->surfaceAlpha );
 	GLSLDefineConstf3(definitions, "DiffuseColor",   waterRendering->diffuseColor);
@@ -511,7 +524,7 @@ void CBumpWater::InitResources(bool loadShader)
 		}
 	}
 
-	rb = GenWaterPlaneBuffer(endlessOcean);
+	rb = GenWaterPlaneBuffer(endlessOcean, waterMeshMins, waterMeshMaxs);
 }
 
 void CBumpWater::FreeResources()
@@ -894,22 +907,158 @@ void CBumpWater::UpdateDynWaves(const bool initialize)
 ///  DRAW FUNCTIONS
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+std::array<int, 4> CBumpWater::GetScreenCopyRect(bool repeatWrap) const
+{
+	RECOIL_DETAILED_TRACY_ZONE;
+	const int vsx = globalRendering->viewSizeX;
+	const int vsy = globalRendering->viewSizeY;
+	const std::array<int, 4> fullRect = {0, 0, vsx, vsy};
+
+	// the bounds below need the shader's baked ViewPos, ScreenInverse and ScreenTextureSizeInverse to
+	// match the current view and screen-copy texture (pixel p <-> texel p - viewPos, distortion in
+	// texels == in pixels); anything else (e.g. a resize without water reinit) copies everything
+	const std::array<int, 4> curViewRect = {globalRendering->viewPosX, globalRendering->viewPosY, vsx, vsy};
+
+	if (shaderViewRect != curViewRect || screenTextureX != vsx || screenTextureY != vsy)
+		return fullRect;
+
+	// Water fragments can only be generated where the water mesh (y displaced by at most +-3 by the
+	// vertex shader) projects into the viewport. Clip its world AABB against the plane w = eps in
+	// front of the eye (in clip space, where clipping is linear), project the vertices of the clipped
+	// box and take their 2D bounds: perspective maps convex sets with w > 0 to convex sets, so these
+	// bounds contain the projection of every box point with w >= eps. Points with 0 < w < eps that
+	// are inside the viewport lie within eps * |(1, tanHalfFovX, tanHalfFovY)| of the eye, which is
+	// impossible while the eye is more than 1 elmo away from the box (checked below). The near and
+	// far planes are deliberately not used (GL_DEPTH_CLAMP would disable them); the side planes are
+	// the final clamp to the viewport.
+	const float3 mins = {waterMeshMins.x - 1.0f, -4.0f, waterMeshMins.z - 1.0f};
+	const float3 maxs = {waterMeshMaxs.x + 1.0f,  4.0f, waterMeshMaxs.z + 1.0f};
+
+	{
+		const float3& eye = camera->GetPos();
+
+		if (eye.x > (mins.x - 1.0f) && eye.x < (maxs.x + 1.0f) && eye.y > (mins.y - 1.0f) && eye.y < (maxs.y + 1.0f) && eye.z > (mins.z - 1.0f) && eye.z < (maxs.z + 1.0f))
+			return fullRect;
+
+		// keep eps * |(1, tanHalfFovX, tanHalfFovY)| well below 1 elmo even for extreme fov's
+		if (camera->GetTanHalfFov() > 20.0f || camera->GetTanHalfFov() * globalRendering->aspectRatio > 20.0f)
+			return fullRect;
+	}
+
+	constexpr float eps = 0.01f;
+	const CMatrix44f& viewProj = camera->GetViewProjectionMatrix();
+
+	std::array<float4, 8> corners;
+	for (int i = 0; i < 8; i++) {
+		corners[i] = viewProj * float4((i & 1) ? maxs.x : mins.x, (i & 2) ? maxs.y : mins.y, (i & 4) ? maxs.z : mins.z, 1.0f);
+	}
+
+	static constexpr int boxEdges[12][2] = {
+		{0, 1}, {2, 3}, {4, 5}, {6, 7},
+		{0, 2}, {1, 3}, {4, 6}, {5, 7},
+		{0, 4}, {1, 5}, {2, 6}, {3, 7},
+	};
+
+	float2 bmin = { std::numeric_limits<float>::max(),  std::numeric_limits<float>::max()};
+	float2 bmax = {-std::numeric_limits<float>::max(), -std::numeric_limits<float>::max()};
+	bool anyVisible = false;
+
+	// the vertices of box & {w >= eps} are the box corners with w >= eps plus the points where box
+	// edges cross w = eps, i.e. exactly the end points of the clipped edges
+	for (const auto& edge: boxEdges) {
+		const float4& ca = corners[edge[0]];
+		const float4& cb = corners[edge[1]];
+
+		const float da = ca.w - eps;
+		const float db = cb.w - eps;
+
+		if (da < 0.0f && db < 0.0f)
+			continue;
+
+		float t0 = 0.0f;
+		float t1 = 1.0f;
+
+		if (da < 0.0f) t0 = da / (da - db);
+		if (db < 0.0f) t1 = da / (da - db);
+
+		for (const float t: {t0, t1}) {
+			const float4 q = {ca.x + (cb.x - ca.x) * t, ca.y + (cb.y - ca.y) * t, ca.z + (cb.z - ca.z) * t, std::max(ca.w + (cb.w - ca.w) * t, eps)};
+			const float2 wp = {(q.x / q.w * 0.5f + 0.5f) * vsx, (q.y / q.w * 0.5f + 0.5f) * vsy};
+
+			if (!std::isfinite(wp.x) || !std::isfinite(wp.y))
+				return fullRect;
+
+			bmin = {std::min(bmin.x, wp.x), std::min(bmin.y, wp.y)};
+			bmax = {std::max(bmax.x, wp.x), std::max(bmax.y, wp.y)};
+			anyVisible = true;
+		}
+	}
+
+	if (!anyVisible)
+		return {0, 0, 0, 0};
+
+	// fragments in pixels [floor(bmin), floor(bmax)] (+1 for rasterization/float slack), the shader
+	// samples refraction and depth at its pixel (screencoord) and at refrUV = pixel + normal.xz *
+	// refractDistortion texels (|normal.xz| <= 1, refractDistortion <= 60; NEAREST filtering)
+	constexpr float margin = 60.0f + 2.0f + 2.0f;
+
+	const float fx0 = std::floor(bmin.x - margin);
+	const float fy0 = std::floor(bmin.y - margin);
+	const float fx1 = std::ceil (bmax.x + margin);
+	const float fy1 = std::ceil (bmax.y + margin);
+
+	int x0 = static_cast<int>(std::clamp(fx0, 0.0f, static_cast<float>(vsx)));
+	int y0 = static_cast<int>(std::clamp(fy0, 0.0f, static_cast<float>(vsy)));
+	int x1 = static_cast<int>(std::clamp(fx1, 0.0f, static_cast<float>(vsx)));
+	int y1 = static_cast<int>(std::clamp(fy1, 0.0f, static_cast<float>(vsy)));
+
+	// CLAMP_TO_EDGE (refraction texture): out-of-range samples read the edge texels, which the
+	// clamped rect contains. REPEAT (the depth texture has the default wrap mode): out-of-range
+	// samples wrap to the opposite edge of the texture, so an axis on which the sampled range
+	// leaves the texture is copied completely
+	if (repeatWrap) {
+		if (fx0 < 0.0f || fx1 > static_cast<float>(vsx)) { x0 = 0; x1 = vsx; }
+		if (fy0 < 0.0f || fy1 > static_cast<float>(vsy)) { y0 = 0; y1 = vsy; }
+	}
+
+	return {x0, y0, std::max(x0, x1), std::max(y0, y1)};
+}
+
 void CBumpWater::Draw()
 {
 	RECOIL_DETAILED_TRACY_ZONE;
 	if (!waterRendering->forceRendering && !readMap->HasVisibleWater())
 		return;
 
+	// texels outside these rects keep older contents, but no water fragment can sample them
+	// (the refraction texture uses CLAMP_TO_EDGE, the depth texture the default REPEAT wrap mode)
+	const std::array<int, 4> fullRect = {0, 0, globalRendering->viewSizeX, globalRendering->viewSizeY};
+	std::array<int, 4> colorRect = fullRect;
+	std::array<int, 4> depthRect = fullRect;
+
+	if (refraction == 1)
+		colorRect = GetScreenCopyRect(false);
+	if (depthCopy)
+		depthRect = GetScreenCopyRect(true);
+
+	const auto CopyScreenRect = [this](const std::array<int, 4>& r) {
+		const int sizeX = r[2] - r[0];
+		const int sizeY = r[3] - r[1];
+
+		if (sizeX > 0 && sizeY > 0)
+			glCopyTexSubImage2D(target, 0, r[0], r[1], globalRendering->viewPosX + r[0], globalRendering->viewPosY + r[1], sizeX, sizeY);
+	};
+
 	if (refraction == 1) {
 		// _SCREENCOPY_ REFRACT TEXTURE
 		glBindTexture(target, refractTexture);
-		glCopyTexSubImage2D(target, 0, 0, 0, globalRendering->viewPosX, globalRendering->viewPosY, globalRendering->viewSizeX, globalRendering->viewSizeY);
+		CopyScreenRect(colorRect);
 	}
 
 	if (depthCopy) {
 		// _SCREENCOPY_ DEPTH TEXTURE
 		glBindTexture(target, depthTexture);
-		glCopyTexSubImage2D(target, 0, 0, 0, globalRendering->viewPosX, globalRendering->viewPosY, globalRendering->viewSizeX, globalRendering->viewSizeY);
+		CopyScreenRect(depthRect);
 	}
 
 	glDisable(GL_ALPHA_TEST);
