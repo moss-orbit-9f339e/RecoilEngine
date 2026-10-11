@@ -213,6 +213,10 @@ void CProjectileHandler::UpdateProjectilesImpl()
 	}
 	else {
 		SCOPED_TIMER("Sim::Projectiles::UpdateUnsyncedMT");
+		// ZKPERF test instrumentation (not for upstream): did the container grow or move during the parallel pass?
+		const size_t sizeBefore = pc.size();
+		const void* dataBefore = (sizeBefore > 0)? static_cast<const void*>(&pc[0]): nullptr;
+
 		for_mt_chunk(0, pc.size(), [&pc](int i) {
 			CProjectile* p = pc[i];
 			assert(p != nullptr);
@@ -222,6 +226,24 @@ void CProjectileHandler::UpdateProjectilesImpl()
 			p->Update();
 			MAPPOS_SANITY_CHECK(p->pos);
 		});
+
+		static uint32_t numPasses = 0;
+		static uint32_t numGrew = 0;
+		static uint32_t numMoved = 0;
+		static size_t maxAdded = 0;
+
+		const size_t sizeAfter = pc.size();
+		const bool moved = (sizeBefore > 0 && static_cast<const void*>(&pc[0]) != dataBefore);
+
+		numPasses += 1;
+		numGrew += (sizeAfter > sizeBefore);
+		numMoved += moved;
+		maxAdded = std::max(maxAdded, sizeAfter - std::min(sizeAfter, sizeBefore));
+
+		if (moved)
+			LOG("ZKPERF_PROJRACE realloc frame=%d before=%u after=%u", gs->frameNum, unsigned(sizeBefore), unsigned(sizeAfter));
+		if ((numPasses % 900) == 0)
+			LOG("ZKPERF_PROJRACE summary frame=%d passes=%u grew=%u realloc=%u max_added=%u size=%u", gs->frameNum, numPasses, numGrew, numMoved, unsigned(maxAdded), unsigned(sizeAfter));
 	}
 }
 
