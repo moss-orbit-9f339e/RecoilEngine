@@ -27,6 +27,14 @@ CStaticMoveType::CStaticMoveType(CUnit* unit) : AMoveType(unit) {
 		Sim::registry.emplace_or_replace<MoveTypes::GeneralMoveType>(unit->entityReference, unit->id);
 }
 
+void CStaticMoveType::Connect()
+{
+	// perf-pr-stack master compat: master re-adds the unit here (MoveCtrl.Disable on a static unit,
+	// e.g. Zero-K terraform), at the end of GeneralMoveSystem's list, which changes the aircraft order
+	if (CSyncChecker::MasterCompat())
+		AMoveType::Connect();
+}
+
 void CStaticMoveType::SlowUpdate()
 {
 	RECOIL_DETAILED_TRACY_ZONE;
