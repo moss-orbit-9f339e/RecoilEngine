@@ -299,13 +299,16 @@ void CBasicMapDamage::Update()
 	// pop explosions that are no longer being processed
 	while (explUpdateQueueIdx < explosionUpdateQueue.size()) {
 		if (explosionUpdateQueue[explUpdateQueueIdx].ttl > 0)
-			return;
+			break;
 
 		explUpdateQueueIdx += 1;
 	}
 
-	// no more explosions left to process, clear queue for real
-	explosionUpdateQueue.clear();
+	// drop the expired records once they are at least half of the queue
+	if (explUpdateQueueIdx < explosionUpdateQueue.size() - explUpdateQueueIdx)
+		return;
+
+	explosionUpdateQueue.erase(explosionUpdateQueue.begin(), explosionUpdateQueue.begin() + explUpdateQueueIdx);
 	explUpdateQueueIdx = 0;
 }
 
