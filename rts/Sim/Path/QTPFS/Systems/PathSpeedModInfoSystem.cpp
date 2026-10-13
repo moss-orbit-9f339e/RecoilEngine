@@ -74,7 +74,7 @@ void ScanForPathSpeedModInfo(int frameModulus) {
         auto& nodeLayer = pm->GetNodeLayer(layer.layerNum);
         for (int i = idxBeg; i < idxEnd; ++i) {
             auto* curNode = nodeLayer.GetPoolNode(i);
-            if (curNode->IsLeaf()) {
+            if (!curNode->NodeDeactivated() && curNode->IsLeaf()) {
                 float speedMod = curNode->GetSpeedMod();
                 layer.updateCurMaxSpeed = std::max(layer.updateCurMaxSpeed, speedMod);
                 layer.updateCurSumSpeed += speedMod;
@@ -91,8 +91,11 @@ void ScanForPathSpeedModInfo(int frameModulus) {
     if (dataChunk == comp.refreshTimeInFrames + (-1))
         for ( QTPFS::entity entity : layersView ) {
             auto& layer = layersView.get<NodeLayerSpeedInfoSweep>(entity);
-            comp.relSpeedModinfos[layer.layerNum].max = layer.updateCurMaxSpeed;
-            comp.relSpeedModinfos[layer.layerNum].mean = layer.updateCurSumSpeed / layer.updateNumLeafNodes;
+            // nodes merged during the sweep can leave no leaf counted; keep the previous values then
+            if (layer.updateNumLeafNodes > 0) {
+                comp.relSpeedModinfos[layer.layerNum].max = layer.updateCurMaxSpeed;
+                comp.relSpeedModinfos[layer.layerNum].mean = layer.updateCurSumSpeed / layer.updateNumLeafNodes;
+            }
             layer.updateInProgress = false;
 
             // if (layer.layerNum == 2) {
