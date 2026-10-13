@@ -383,6 +383,8 @@ inline void ILosType::DeleteInstance(SLosInstance* li)
 
 	*vit = vec.back();
 	vec.pop_back();
+	if (vec.empty())
+		instanceHashes.erase(pit);
 
 	// caller has to do that
 	assert(!li->isCached);
