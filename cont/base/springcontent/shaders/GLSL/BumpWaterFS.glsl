@@ -52,7 +52,11 @@ vec2 reftexcoord = screenPos * ScreenInverse;
   float pm10 = gl_ProjectionMatrix[2].z;
 
   float ConvertDepthToEyeZ(float d) {
-    return (pm14 / (d * -2.0 + 1.0 - pm10));
+    // window depth to NDC depth: the same with GL_ZERO_TO_ONE clip control, d * 2 - 1 without it
+  #ifndef DEPTH_CLIP01
+    d = d * 2.0 - 1.0;
+  #endif
+    return (pm14 / (-d - pm10));
   }
 #endif
 

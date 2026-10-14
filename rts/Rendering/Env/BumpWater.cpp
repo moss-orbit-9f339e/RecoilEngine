@@ -418,6 +418,7 @@ void CBumpWater::InitResources(bool loadShader)
 	if (refraction>0) definitions += "#define opt_refraction\n";
 	if (shoreWaves)   definitions += "#define opt_shorewaves\n";
 	if (depthCopy)    definitions += "#define opt_depth\n";
+	if (globalRendering->supportClipSpaceControl) definitions += "#define DEPTH_CLIP01\n";
 	if (blurRefl)     definitions += "#define opt_blurreflection\n";
 	if (endlessOcean) definitions += "#define opt_endlessocean\n";
 
