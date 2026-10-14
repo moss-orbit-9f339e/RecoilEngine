@@ -685,12 +685,8 @@ if(MINGW)
 		# With LTO the compile step only writes GCC's IR, and BFD does not hand pe-bigobj IR objects to
 		# the LTO plugin ("plugin needed to handle lto object"). Keep the IR objects in the regular
 		# format and apply big-obj where the machine code is generated: the LTRANS step of the link.
-		# --allow-multiple-definition: with LTO, mingw ld (GCC 13, binutils 2.41) reports multiple
-		# definitions of the identical inline nowide::basic_fstream destructor thunks emitted by
-		# several TUs (e.g. DumpState.cpp and LuaUnsyncedCtrl.cpp; "symbol from plugin",
-		# .gnu.linkonce.t sections keyed by different thunk names). Without LTO they are merged.
 		foreach(_linkType EXE SHARED MODULE)
-			set(CMAKE_${_linkType}_LINKER_FLAGS "${CMAKE_${_linkType}_LINKER_FLAGS} -Wa,-mbig-obj -Wl,--allow-multiple-definition")
+			set(CMAKE_${_linkType}_LINKER_FLAGS "${CMAKE_${_linkType}_LINKER_FLAGS} -Wa,-mbig-obj")
 		endforeach()
 	else()
 		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wa,-mbig-obj")
