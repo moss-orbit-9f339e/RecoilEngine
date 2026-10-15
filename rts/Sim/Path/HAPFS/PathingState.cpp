@@ -10,6 +10,7 @@
 #include "Net/Protocol/NetProtocol.h"
 
 #include "Sim/Misc/ModInfo.h"
+#include "Sim/Misc/GroundBlockingObjectMap.h"
 #include "Sim/MoveTypes/MoveDefHandler.h"
 #include "Sim/MoveTypes/MoveMath/MoveMath.h"
 #include "PathFinder.h"
@@ -931,7 +932,8 @@ std::uint32_t PathingState::CalcHash(const char* caller) const
 	const unsigned int hmChecksum = readMap->CalcHeightmapChecksum();
 	const unsigned int tmChecksum = readMap->CalcTypemapChecksum();
 	const unsigned int mdChecksum = moveDefHandler.GetCheckSum();
-	const unsigned int peHashCode = (hmChecksum + tmChecksum + mdChecksum + BLOCK_SIZE + PATHESTIMATOR_VERSION);
+	const unsigned int bmChecksum = groundBlockingObjectMap.CalcChecksum();
+	const unsigned int peHashCode = (hmChecksum + tmChecksum + mdChecksum + bmChecksum + BLOCK_SIZE + PATHESTIMATOR_VERSION);
 
 	LOG("[PathingState::%s][%s] BLOCK_SIZE=%u", __func__, caller, BLOCK_SIZE);
 	LOG("[PathingState::%s][%s] PATHESTIMATOR_VERSION=%u", __func__, caller, PATHESTIMATOR_VERSION);
