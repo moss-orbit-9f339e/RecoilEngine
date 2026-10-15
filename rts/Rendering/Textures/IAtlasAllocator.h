@@ -36,6 +36,10 @@ public:
 	virtual int GetReqNumTexLevels() const = 0;
 	virtual uint32_t GetNumPages() const = 0;
 	void SetMaxTexLevel(int maxLevels);
+	int GetMaxTexLevel() const
+	{
+		return numLevels;
+	}
 public:
 	void AddEntry(const SAtlasEntry& ae);
 	void AddEntry(const std::string& name, const int2& size);

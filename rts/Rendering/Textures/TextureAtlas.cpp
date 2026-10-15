@@ -289,7 +289,9 @@ void CTextureAtlas::ReloadTextures()
 		return;
 	}
 
+	const int maxLevels = atlasAllocator->GetMaxTexLevel();
 	ReinitAllocator();
+	atlasAllocator->SetMaxTexLevel(maxLevels);
 
 	spring::unordered_set<size_t> nonFileEntries;
 	for (size_t i = 0; i < memTextures.size(); ++i) {
