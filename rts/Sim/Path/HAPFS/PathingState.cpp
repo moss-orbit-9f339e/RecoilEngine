@@ -796,7 +796,7 @@ void PathingState::MapChanged(unsigned int x1, unsigned int z1, unsigned int x2,
 			std::uint8_t blockOrigLinkFlags = blockStates.nodeLinksObsoleteFlags[idx];
 
 			uint8_t linkType = getIdxFromZ(z) + getIdxFromX(x);
-			blockStates.nodeLinksObsoleteFlags[idx] = uint8_t(activeLinks[linkType]);
+			blockStates.nodeLinksObsoleteFlags[idx] |= uint8_t(activeLinks[linkType]);
 			if (!pathingDirectional) 
 				blockStates.nodeLinksObsoleteFlags[idx] &= PATH_DIRECTIONS_HALF_MASK;
 
