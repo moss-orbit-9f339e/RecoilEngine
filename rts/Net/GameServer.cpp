@@ -903,7 +903,7 @@ void CGameServer::LagProtection()
 			const float playerCpuUsage = player.cpuUsage;
 			const float correctedCpu   = std::clamp(playerCpuUsage, 0.0f, 1.0f);
 
-			if (player.isReconn && curPing < 2 * GAME_SPEED)
+			if (player.isReconn && (serverFrameNum - player.lastFrameResponse) < 2 * GAME_SPEED)
 				player.isReconn = false;
 
 			if ((player.isLocal) || (demoReader ? !player.isFromDemo : !player.spectator)) {
