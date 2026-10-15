@@ -565,17 +565,6 @@ bool processContextEvent(Rml::Context* context, const SDL_Event& event)
 		case SDL_TEXTINPUT:
 			return true;  // handled elsewhere
 
-		case SDL_WINDOWEVENT: {
-			if (event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED) {
-				auto x = event.window.data1;
-				auto y = event.window.data2;
-
-				state->render_interface.SetViewport(x, y);
-				state->winX = x;
-				state->winY = y;
-			}
-		} break;
-
 		default:
 			break;
 	}
@@ -587,6 +576,12 @@ bool RmlGui::ProcessEvent(const SDL_Event& event)
 {
 	if (!RmlInitialized()) {
 		return false;
+	}
+
+	if (event.type == SDL_WINDOWEVENT && event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED) {
+		state->winX = event.window.data1;
+		state->winY = event.window.data2;
+		state->render_interface.SetViewport(state->winX, state->winY);
 	}
 
 	bool result = false;
