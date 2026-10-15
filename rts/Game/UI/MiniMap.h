@@ -195,6 +195,8 @@ protected:
 	// transforms for [0] := Draw, [1] := DrawInMiniMap, [2] := Lua DrawInMiniMap
 	CMatrix44f viewMats[3];
 	CMatrix44f projMats[3];
+	// effective draw transform while DrawForReal runs without the texture cache
+	const CMatrix44f* drawProjection = nullptr;
 
 	FBO fbo;
 	FBO fboResolve;

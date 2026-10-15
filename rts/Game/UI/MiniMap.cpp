@@ -45,6 +45,7 @@
 #include "Sim/Weapons/Weapon.h"
 #include "System/Config/ConfigHandler.h"
 #include "System/EventHandler.h"
+#include "System/ScopedResource.h"
 #include "System/StringHash.h"
 #include "System/StringUtil.h"
 #include "System/TimeProfiler.h"
@@ -1065,14 +1066,10 @@ void CMiniMap::DrawCircle(TypedRenderBuffer<VA_TYPE_C>& rb, const float3& pos, S
 void CMiniMap::ApplyConstraintsMatrix() const
 {
 	RECOIL_DETAILED_TRACY_ZONE;
-	if (!renderToTexture) {
-		if (globalRendering->dualScreenMode) {
-			glTranslatef(curPos.x, curPos.y, 0.0f);
-		} else {
-			glTranslatef(curPos.x * globalRendering->pixelX, curPos.y * globalRendering->pixelY, 0.0f);
-		}
-		glScalef(curDim.x * globalRendering->pixelX, curDim.y * globalRendering->pixelY, 1.0f);
-	}
+	// Set by DrawForReal; Lua's pixel-to-unit modelview (also used by SetClipPlanes) is kept.
+	assert(renderToTexture || drawProjection != nullptr);
+	if (!renderToTexture && drawProjection != nullptr)
+		glLoadMatrixf(*drawProjection);
 }
 
 /******************************************************************************/
@@ -1339,10 +1336,8 @@ void CMiniMap::DrawForReal(bool useNormalizedCoors, bool updateTex, bool luaCall
 
 	glActiveTexture(GL_TEXTURE0);
 
-	if (!updateTex) {
-		RenderCachedTexture(useNormalizedCoors);
+	if (!updateTex && RenderCachedTexture(useNormalizedCoors))
 		return;
-	}
 
 	glPushAttrib(GL_DEPTH_BUFFER_BIT);
 	glEnable(GL_BLEND);
@@ -1364,6 +1359,20 @@ void CMiniMap::DrawForReal(bool useNormalizedCoors, bool updateTex, bool luaCall
 			glScalef(curDim.x * globalRendering->pixelX, curDim.y * globalRendering->pixelY, 1.0f);
 		}
 	}
+
+	// Lua resets its matrices for each minimap call-in. Preserve the effective
+	// unit-square transform, including a custom Lua transform or dual viewport.
+	CMatrix44f projection;
+	if (!renderToTexture) {
+		CMatrix44f modelview;
+		glGetFloatv(GL_PROJECTION_MATRIX, projection);
+		glGetFloatv(GL_MODELVIEW_MATRIX, modelview);
+		projection = projection * modelview;
+	}
+	const spring::ScopedNullResource drawContext(
+		[&]() { drawProjection = &projection; },
+		[this, previous = drawProjection]() { drawProjection = previous; }
+	);
 
 	cursorIcons.Enable(false);
 
@@ -1387,9 +1396,7 @@ void CMiniMap::DrawForReal(bool useNormalizedCoors, bool updateTex, bool luaCall
 
 	if (!updateTex) {
 		glPushMatrix();
-			if (globalRendering->dualScreenMode) {
-				glTranslatef(curPos.x, curPos.y, 0.0f);
-			} else {
+			if (useNormalizedCoors && !globalRendering->dualScreenMode) {
 				glTranslatef(curPos.x * globalRendering->pixelX, curPos.y * globalRendering->pixelY, 0.0f);
 				glScalef(curDim.x * globalRendering->pixelX, curDim.y * globalRendering->pixelY, 1.0f);
 			}
@@ -1866,11 +1873,13 @@ void CMiniMap::DrawBackground() const
 
 	//glMatrixMode(GL_MODELVIEW);
 	glPushMatrix();
-	glLoadIdentity();
+	if (renderToTexture)
+		glLoadIdentity();
 
 	glMatrixMode(GL_PROJECTION);
 	glPushMatrix();
-	glLoadMatrixf(projMats[0]);
+	if (renderToTexture)
+		glLoadMatrixf(projMats[0]);
 
 	// draw the map
 	auto state = GL::SubState(
