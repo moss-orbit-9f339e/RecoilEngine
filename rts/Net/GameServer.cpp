@@ -2624,6 +2624,8 @@ void CGameServer::PushAction(const Action& action, bool fromAutoHost)
 			}
 
 			isPaused = newPausedState;
+			if (demoReader == nullptr)
+				Broadcast(CBaseNetProtocol::Get().SendPause(SERVER_PLAYER, isPaused));
 		} break;
 
 		default: {
