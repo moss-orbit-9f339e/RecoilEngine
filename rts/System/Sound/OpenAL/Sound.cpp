@@ -199,8 +199,12 @@ size_t CSound::GetSoundId(const std::string& name)
 
 	const auto itemDefIt = soundItemDefsMap.find(StringToLower(name));
 
-	if (itemDefIt != soundItemDefsMap.end())
+	if (itemDefIt != soundItemDefsMap.end()) {
+		const auto cached = soundMap.find(itemDefIt->first);
+		if (cached != soundMap.end())
+			return (preloadSet.erase(name), cached->second);
 		return (preloadSet.erase(name), MakeItemFromDef(itemDefIt->second));
+	}
 
 	// name does not match any sounds.lua item, interpret as raw file reference
 	if (LoadSoundBuffer(name) > 0) {
