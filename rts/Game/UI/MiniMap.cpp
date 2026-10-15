@@ -1339,10 +1339,8 @@ void CMiniMap::DrawForReal(bool useNormalizedCoors, bool updateTex, bool luaCall
 
 	glActiveTexture(GL_TEXTURE0);
 
-	if (!updateTex) {
-		RenderCachedTexture(useNormalizedCoors);
+	if (!updateTex && RenderCachedTexture(useNormalizedCoors))
 		return;
-	}
 
 	glPushAttrib(GL_DEPTH_BUFFER_BIT);
 	glEnable(GL_BLEND);
@@ -1387,9 +1385,7 @@ void CMiniMap::DrawForReal(bool useNormalizedCoors, bool updateTex, bool luaCall
 
 	if (!updateTex) {
 		glPushMatrix();
-			if (globalRendering->dualScreenMode) {
-				glTranslatef(curPos.x, curPos.y, 0.0f);
-			} else {
+			if (useNormalizedCoors && !globalRendering->dualScreenMode) {
 				glTranslatef(curPos.x * globalRendering->pixelX, curPos.y * globalRendering->pixelY, 0.0f);
 				glScalef(curDim.x * globalRendering->pixelX, curDim.y * globalRendering->pixelY, 1.0f);
 			}
@@ -1866,11 +1862,13 @@ void CMiniMap::DrawBackground() const
 
 	//glMatrixMode(GL_MODELVIEW);
 	glPushMatrix();
-	glLoadIdentity();
+	if (renderToTexture)
+		glLoadIdentity();
 
 	glMatrixMode(GL_PROJECTION);
 	glPushMatrix();
-	glLoadMatrixf(projMats[0]);
+	if (renderToTexture)
+		glLoadMatrixf(projMats[0]);
 
 	// draw the map
 	auto state = GL::SubState(
