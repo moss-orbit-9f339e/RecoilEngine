@@ -135,7 +135,7 @@ unsigned int CS3OTextureHandler::LoadAndCacheTexture(
 	const auto& textureName = model->texs[texNum];
 	const auto textureIt = textureCache.find(textureName);
 
-	if (textureIt != textureCache.end() && textureIt->second.texID > 0)
+	if (textureIt != textureCache.end() && (preloadCall || textureIt->second.texID > 0))
 		return textureIt->second.texID;
 
 	const auto bitmapIt = bitmapCache.find(textureName);
