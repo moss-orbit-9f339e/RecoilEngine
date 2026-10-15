@@ -82,6 +82,7 @@
 
 #include <cctype>
 #include <functional>
+#include <string_view>
 #include <type_traits>
 
 
@@ -743,8 +744,11 @@ static int GetRulesParam(lua_State* L, const char* caller, int index,
                           const LuaRulesParams::Params& params,
                           const int& losStatus)
 {
-	const std::string& key = luaL_checkstring(L, index);
-	const auto it = params.find(key);
+	// Keep the existing C-string semantics, including truncation at embedded NULs.
+	const std::string_view key = luaL_checkstring(L, index);
+	const auto it = params.find_as(key,
+		[](std::string_view query) { return spring::LiteHash(query.data(), static_cast<uint32_t>(query.size()), 0); },
+		[](const std::string& stored, std::string_view query) { return stored == query; });
 	if (it == params.end())
 		return 0;
 
