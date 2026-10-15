@@ -330,6 +330,7 @@ void CSoundSource::PlayStream(IAudioChannel* channel, const std::string& file, f
 	alSource3f(id, AL_DIRECTION,      0.0f,  0.0f,  0.0f);
 	alSourcef(id, AL_ROLLOFF_FACTOR,  0.0f);
 	alSourcei(id, AL_SOURCE_RELATIVE, AL_TRUE);
+	alSourcei(id, AL_LOOPING, AL_FALSE);
 
 	// COggStreams only appends buffers, giving errors when a buffer of another format is still assigned
 	alSourcei(id, AL_BUFFER, AL_NONE);
