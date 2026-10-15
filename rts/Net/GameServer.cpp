@@ -2550,7 +2550,7 @@ void CGameServer::PushAction(const Action& action, bool fromAutoHost)
 			// the next time-index must be "close enough" not
 			// to move past more than 1 NETMSG_NEWFRAME
 			if (demoReader != nullptr)
-				modGameTime = demoReader->GetModGameTime() + 0.001f;
+				modGameTime = demoReader->GetNextDemoReadTime() + 0.001f;
 
 			CreateNewFrame(true, true);
 		} break;
