@@ -385,14 +385,15 @@ void CGame::ClientReadNet()
 				ZoneScopedN("Net::Pause");
 				const uint8_t playerNum = inbuf[1];
 
-				if (!playerHandler.IsValidPlayer(playerNum)) {
+				if (!playerHandler.IsValidPlayer(playerNum) && playerNum != SERVER_PLAYER) {
 					LOG_L(L_ERROR, "[Game::%s][NETMSG_PAUSE] invalid player-number %i", __func__, playerNum);
 					break;
 				}
 
 				gs->paused = !!inbuf[2];
 
-				LOG("%s %s the game", playerHandler.Player(playerNum)->name.c_str(), (gs->paused ? "paused" : "unpaused"));
+				const char* playerName = (playerNum == SERVER_PLAYER) ? "server" : playerHandler.Player(playerNum)->name.c_str();
+				LOG("%s %s the game", playerName, (gs->paused ? "paused" : "unpaused"));
 
 				eventHandler.GamePaused(playerNum, gs->paused);
 				AddTraffic(playerNum, packetCode, dataLength);
