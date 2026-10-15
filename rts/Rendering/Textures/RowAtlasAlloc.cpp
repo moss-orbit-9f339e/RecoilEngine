@@ -42,7 +42,7 @@ void CRowAtlasAlloc::EstimateNeededSize()
 	}
 
 	while (spaceFree < spaceNeeded * 1.2f) {
-		if (atlasSize.x >= maxsize.x && atlasSize.y >= maxsize.y)
+		if ((atlasSize.x << 1) > maxsize.x && (atlasSize.y << 1) > maxsize.y)
 			break;
 
 		// Resize texture
