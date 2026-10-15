@@ -86,9 +86,10 @@ bool CGZFileHandler::UncompressBuffer()
 		zstream.avail_out = BUFFER_SIZE;
 		zstream.next_out = unzipBuffer;
 		const int ret = inflate(&zstream, Z_NO_FLUSH);
-		if (ret != Z_OK) {
+		if (ret != Z_OK && ret != Z_STREAM_END) {
 			fileBuffer.clear();
 			fileSize = -1;
+			inflateEnd(&zstream);
 			return false;
 		}
 
