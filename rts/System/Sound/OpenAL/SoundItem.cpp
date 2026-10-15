@@ -59,7 +59,7 @@ SoundItem::SoundItem(size_t itemID, size_t bufferID, const spring::unordered_map
 
 bool SoundItem::PlayNow()
 {
-	if (maxConcurrent >= currentlyPlaying) {
+	if (currentlyPlaying < maxConcurrent) {
 		currentlyPlaying++;
 		return true;
 	}
