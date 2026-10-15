@@ -103,8 +103,8 @@ bool CTooltipConsole::IsAbove(int x, int y)
 	const float mx = MouseX(x);
 	const float my = MouseY(y);
 
-	return ((mx > (x + 0.01f)) && (mx < (x + w)) &&
-	        (my > (y + 0.01f)) && (my < (y + h)));
+	return ((mx > (this->x + 0.01f)) && (mx < (this->x + w)) &&
+	        (my > (this->y + 0.01f)) && (my < (this->y + h)));
 }
 
 
