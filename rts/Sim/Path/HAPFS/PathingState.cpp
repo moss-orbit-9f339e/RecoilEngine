@@ -237,7 +237,7 @@ void PathingState::InitEstimator(const std::string& peFileName, const std::strin
 
 		// Mark block directions as dirty to ensure they get updated.
 		auto& nodeFlags = blockStates.nodeLinksObsoleteFlags;
-		std::for_each(nodeFlags.begin(), nodeFlags.end(), [](std::uint8_t& f){ f = PATH_DIRECTIONS_HALF_MASK; });
+		std::for_each(nodeFlags.begin(), nodeFlags.end(), [](std::uint8_t& f){ f = PATH_DIRECTIONS_MASK; });
 
 		// note: only really needed if numExtraThreads > 0
 		spring::barrier pathBarrier(numThreads);
