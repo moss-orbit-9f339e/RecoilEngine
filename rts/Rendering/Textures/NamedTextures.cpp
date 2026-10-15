@@ -90,6 +90,14 @@ namespace CNamedTextures {
 		if (!loadTex)
 			waitingTextures.push_back(texName);
 
+		if (const auto it = texInfoMap.find(texName); it != texInfoMap.end()) {
+			auto& existing = texInfoVec[it->second];
+			const bool persist = existing.persist;
+			existing = texInfo;
+			existing.persist |= persist;
+			return;
+		}
+
 		if (freeIndices.empty()) {
 			texInfoMap[texName] = texInfoVec.size();
 			texInfoVec.push_back(texInfo);
