@@ -553,7 +553,7 @@ void UDPConnection::ProcessRawPacket(Packet& incoming)
 
 	if (!unackedChunks.empty()) {
 		const int nextCont = incoming.lastContinuous + 1;
-		const int unAckDiff = unackedChunks[0]->chunkNumber - nextCont;
+		const int unAckDiff = nextCont - unackedChunks[0]->chunkNumber;
 
 		if (-256 <= unAckDiff && unAckDiff <= 256) {
 			if (incoming.nakType < 0) {
