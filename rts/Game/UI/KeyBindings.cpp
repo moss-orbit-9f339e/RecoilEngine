@@ -631,7 +631,7 @@ void CKeyBindings::AddActionToKeyMap(KeyMap& bindings, Action& action)
 		assert(it->first == ks);
 
 		auto it = std::find_if(al.begin(), al.end(), [&action](Action a) {
-			return action.line == a.line;
+			return action.line == a.line && action.keyChain == a.keyChain;
 		});
 
 		// check if the command is already bound to the given keyset
