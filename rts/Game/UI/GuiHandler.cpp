@@ -3856,8 +3856,8 @@ void CGuiHandler::DrawMapStuff(bool onMiniMap)
 						glSurfaceCircle(buildPos, wd->coverageRange, { cmdColors.rangeInterceptorOn }, 40);
 					}
 
+					buildCommands.clear();
 					if (GetQueueKeystate()) {
-						buildCommands.clear();
 
 						const Command c = bi.CreateCommand();
 
