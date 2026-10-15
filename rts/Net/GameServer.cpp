@@ -909,8 +909,10 @@ void CGameServer::LagProtection()
 			if ((player.isLocal) || (demoReader ? !player.isFromDemo : !player.spectator)) {
 				if (!player.isReconn && correctedCpu > refCpuUsage)
 					refCpuUsage = correctedCpu;
-				cpu.push_back(correctedCpu);
-				ping.push_back(curPing);
+				if (!player.isReconn) {
+					cpu.push_back(correctedCpu);
+					ping.push_back(curPing);
+				}
 			}
 		}
 	}
