@@ -449,7 +449,7 @@ unsigned int CPathManager::RequestPath(
 		auto searchView = registry.view<PathSearch>();
 		for ( entt::entity entity : searchView ) {
 			auto& search = searchView.get<PathSearch>(entity);
-			if (search.caller == caller) {
+			if (search.caller == caller && !registry.all_of<PathExtension>(entity)) {
 				existingSearch = &search;
 				break;
 			}
