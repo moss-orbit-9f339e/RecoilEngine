@@ -318,9 +318,9 @@ void CMouseHandler::SetButtonEmulated(int button, bool pressed)
 	// fire only on an effective (physical-or-emulated) edge, so a real press
 	// underneath an emulated one doesn't produce a duplicate event
 	if (pressed && !wasDown) {
-		MousePress(lastx, lasty, button);
+		MousePress(lastx, lasty + globalRendering->viewWindowOffsetY, button);
 	} else if (!pressed && wasDown && !physicalDown) {
-		MouseRelease(lastx, lasty, button);
+		MouseRelease(lastx, lasty + globalRendering->viewWindowOffsetY, button);
 	}
 }
 

@@ -677,7 +677,7 @@ public:
 
 	bool Execute(const UnsyncedAction& action) const final {
 		if (!action.IsRepeat())
-			mouse->MousePress(mouse->lastx, mouse->lasty, button);
+			mouse->MousePress(mouse->lastx, mouse->lasty + globalRendering->viewWindowOffsetY, button);
 
 		return true;
 	}
@@ -688,7 +688,7 @@ public:
 			// Note that SYS_WMEVENT on windows also only sends MousePress events for these buttons.
 			return false;
 		}
-		mouse->MouseRelease(mouse->lastx, mouse->lasty, button);
+		mouse->MouseRelease(mouse->lastx, mouse->lasty + globalRendering->viewWindowOffsetY, button);
 		// TODO: false for backwards compatibility (needs in depth review)
 		return false;
 	}
