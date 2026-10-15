@@ -225,7 +225,7 @@ bool CTextureAtlas::CreateTexture()
 
 	GL::TextureCreationParams tcp {
 		//make function re-entrant
-		.texID = atlasTex ? atlasTex->GetId() : 0,
+		.texID = atlasTex ? atlasTex->DisOwn() : 0,
 		.reqNumLevels = numLevels,
 		.linearMipMapFilter = true,
 		.linearTextureFilter = true,
