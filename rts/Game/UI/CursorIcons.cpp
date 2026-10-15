@@ -104,9 +104,14 @@ void CCursorIcons::DrawCursors() const
 	const SColor iconColor = { 1.0f, 1.0f, 1.0f, cmdColors.QueueIconAlpha() };
 
 	const CMouseCursor* lastCursor = nullptr;
+	int lastCommand = icons.front().cmd;
+	const CMouseCursor* currentCursor = GetCursor(lastCommand);
 
 	for (const Icon& icon : icons) {
-		const CMouseCursor* currentCursor = GetCursor(icon.cmd);
+		if (icon.cmd != lastCommand) {
+			lastCommand = icon.cmd;
+			currentCursor = GetCursor(lastCommand);
+		}
 		if (!currentCursor)
 			continue;
 
