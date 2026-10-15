@@ -41,9 +41,6 @@ bool IArchive::CalcHash(uint32_t fid, sha512::raw_digest& hash, std::vector<std:
 	if (!GetFile(fid, fb))
 		return false;
 
-	if (fb.empty())
-		return false;
-
 	sha512::calc_digest(fb.data(), fb.size(), hash.data());
 	return true;
 }

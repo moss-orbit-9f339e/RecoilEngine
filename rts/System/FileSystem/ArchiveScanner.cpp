@@ -59,7 +59,7 @@ LOG_REGISTER_SECTION_GLOBAL(LOG_SECTION_ARCHIVESCANNER)
  * but mapping them all, every time to make the list is)
  */
 
-constexpr static int INTERNAL_VER = 22;
+constexpr static int INTERNAL_VER = 23;
 
 
 /*
