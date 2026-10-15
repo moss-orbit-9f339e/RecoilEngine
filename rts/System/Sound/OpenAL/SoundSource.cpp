@@ -80,8 +80,9 @@ void CSoundSource::Update()
 {
 	if (asyncPlayItem.id != 0) {
 		// Sound::Update() holds mutex, soundItems can not be accessed concurrently
-		Play(asyncPlayItem.channel, sound->GetSoundItem(asyncPlayItem.id), asyncPlayItem.position, asyncPlayItem.velocity, asyncPlayItem.volume, asyncPlayItem.relative);
-		asyncPlayItem = AsyncSoundItemData();
+		const auto pending = asyncPlayItem;
+		asyncPlayItem = {};
+		Play(pending.channel, sound->GetSoundItem(pending.id), pending.position, pending.velocity, pending.volume, pending.relative);
 	}
 
 	if (curPlayingItem.id != 0) {
@@ -171,6 +172,11 @@ bool CSoundSource::IsPlaying(const bool checkOpenAl) const
 
 void CSoundSource::Stop()
 {
+	IAudioChannel* pendingChannel = asyncPlayItem.channel;
+	asyncPlayItem = {};
+	if (pendingChannel != nullptr && pendingChannel != curChannel)
+		pendingChannel->SoundSourceFinished(this);
+
 	alSourceStop(id);
 
 	{
@@ -205,11 +211,17 @@ void CSoundSource::Play(IAudioChannel* channel, SoundItem* item, float3 pos, flo
 	assert(!curStream);
 	assert(channel);
 
-	if (!item->PlayNow())
+	if (!item->PlayNow()) {
+		if (channel != curChannel)
+			channel->SoundSourceFinished(this);
 		return;
+	}
 
 	const SoundBuffer& itemBuffer = SoundBuffer::GetById(item->GetSoundBufferID());
 
+	// Keep the pending registration when replacing a sound on the same channel.
+	if (curChannel == channel)
+		curChannel = nullptr;
 	Stop();
 
 	curVolume = volume;
@@ -291,6 +303,9 @@ void CSoundSource::Play(IAudioChannel* channel, SoundItem* item, float3 pos, flo
 
 void CSoundSource::PlayAsync(IAudioChannel* channel, size_t id, float3 pos, float3 velocity, float volume, float priority, bool relative)
 {
+	if (asyncPlayItem.channel != nullptr && asyncPlayItem.channel != curChannel && asyncPlayItem.channel != channel)
+		asyncPlayItem.channel->SoundSourceFinished(this);
+
 	asyncPlayItem.channel  = channel;
 	asyncPlayItem.id       = id;
 
