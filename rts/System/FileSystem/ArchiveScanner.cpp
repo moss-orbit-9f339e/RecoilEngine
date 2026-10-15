@@ -882,7 +882,7 @@ bool CArchiveScanner::CheckCachedData(const std::string& fullName, uint32_t& mod
 		// e.g. after redownload
 		ai.updated = true;
 
-		if (doChecksum && !ai.hashed) {
+		if (doChecksum && (!ai.hashed || FileSystem::GetExtensionLowerCase(fullName) == "sdd")) {
 			isDirty |= (ai.hashed = GetArchiveChecksum(fullName, ai));
 		}
 		assert(!doChecksum || ai.checksum != sha512::NULL_RAW_DIGEST);
@@ -1062,6 +1062,8 @@ bool CArchiveScanner::GetArchiveChecksum(const std::string& archiveName, Archive
 			}
 		);
 	});
+
+	archiveInfo.checksum = sha512::NULL_RAW_DIGEST;
 
 	// combine individual hashes, initialize to hash(name)
 	for (size_t i = 0; i < fileNames.size(); i++) {
