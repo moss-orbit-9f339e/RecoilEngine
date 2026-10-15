@@ -328,7 +328,10 @@ namespace CNamedTextures {
 			return true;
 		}
 
-		return (GenLoadTex(texName));
+		if (!GenLoadTex(texName))
+			return false;
+
+		return Bind(texName);
 	}
 
 
