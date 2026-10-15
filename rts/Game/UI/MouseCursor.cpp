@@ -375,10 +375,8 @@ void CMouseCursor::Update()
 
 	animTime = math::fmod(animTime + globalRendering->lastFrameTime * 0.001f, animPeriod);
 
-	if (animTime < frames[currentFrame].startTime) {
+	if (animTime < frames[currentFrame].startTime)
 		currentFrame = 0;
-		return;
-	}
 
 	while (animTime > frames[currentFrame].endTime) {
 		currentFrame += 1;
