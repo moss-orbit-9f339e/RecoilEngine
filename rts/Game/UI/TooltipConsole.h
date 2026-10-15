@@ -1,7 +1,6 @@
 /* This file is part of the Spring engine (GPL v2 or later), see LICENSE.html */
 
-#ifndef TOOL_TIP_CONSOLE_H
-#define TOOL_TIP_CONSOLE_H
+#pragma once
 
 #include "Sim/Misc/Resource.h"
 #include "InputReceiver.h"
@@ -37,6 +36,7 @@ class CTooltipConsole : public CInputReceiver {
 
 		void Draw();
 		bool IsAbove(int x, int y);
+		std::string GetTooltip(int, int) override { return {}; }
 
 		// helpers
 		static std::string MakeUnitString(const CUnit* unit);
@@ -52,5 +52,3 @@ class CTooltipConsole : public CInputReceiver {
 };
 
 extern CTooltipConsole* tooltip;
-
-#endif /* TOOL_TIP_CONSOLE_H */
