@@ -1191,7 +1191,6 @@ bool CMouseHandler::ReplaceMouseCursor(
 	if (activeCursorIdx == fileIt->second)
 		SetCursor(activeCursorName, true);
 
-	newCursor = {}; //now it's safe to kill old cursor
 	return (loadedCursors[activeCursorIdx].IsValid());
 }
 
