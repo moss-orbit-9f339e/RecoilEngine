@@ -301,6 +301,16 @@ public:
 		return const_iterator(this, bucket);
 	}
 
+	// The query hash and comparison must agree with the stored key functors.
+	template<typename QueryT, typename QueryHashT, typename QueryCompT>
+	const_iterator find_as(const QueryT& key, const QueryHashT& hasher, const QueryCompT& comp) const
+	{
+		const auto bucket = find_filled_bucket(key, hasher, comp);
+		if (bucket == (size_t)-1)
+			return end();
+		return const_iterator(this, bucket);
+	}
+
 	bool contains(const KeyT& k) const
 	{
 		return find_filled_bucket(k) != (size_t)-1;
@@ -547,12 +557,18 @@ private:
 	// Find the bucket with this key, or return nullptr
 	size_t find_filled_bucket(const KeyT& key) const
 	{
+		return find_filled_bucket(key, _hasher, _comp);
+	}
+
+	template<typename QueryT, typename QueryHashT, typename QueryCompT>
+	size_t find_filled_bucket(const QueryT& key, const QueryHashT& hasher, const QueryCompT& comp) const
+	{
 		if (empty()) { return (size_t)-1; } // Optimization
 
-		auto hash_value = _hasher(key);
+		auto hash_value = hasher(key);
 		for (int offset=0; offset<=_max_probe_length; ++offset) {
 			auto bucket = (hash_value + offset) & _mask;
-			if (_states[bucket] == State::FILLED && _comp(_pairs[bucket].first, key)) {
+			if (_states[bucket] == State::FILLED && comp(_pairs[bucket].first, key)) {
 				return bucket;
 			}
 			if (_states[bucket] == State::INACTIVE) {
