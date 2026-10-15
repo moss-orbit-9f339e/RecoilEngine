@@ -494,7 +494,7 @@ bool CPathEstimator::TestBlock(
 	// maximum modifier value
 	//
 	// const float  flowCost = (peDef.testMobile) ? (PathFlowMap::GetInstance())->GetFlowCost(testBlockSquare.x, testBlockSquare.y, moveDef, PathDir2PathOpt(pathDir)) : 0.0f;
-	const float extraCost = blockStates.GetNodeExtraCost(testBlockSquare.x, testBlockSquare.y, peDef.synced);
+	const float extraCost = psBlockStates->GetNodeExtraCost(testBlockSquare.x, testBlockSquare.y, peDef.synced);
 	const float  nodeCost = testVertexCost + extraCost;
 
 	const float gCost = parentOpenBlock->gCost + nodeCost;
