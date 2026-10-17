@@ -131,8 +131,10 @@ void IWater::SetWater(int rendererMode)
 	if (water)
 		configHandler->Set("Water", static_cast<int>(water->GetID()));
 
-	if (water == nullptr)
+	if (water == nullptr) {
 		water = std::make_unique<CBasicWater>();
+		water->InitResources();
+	}
 }
 
 
