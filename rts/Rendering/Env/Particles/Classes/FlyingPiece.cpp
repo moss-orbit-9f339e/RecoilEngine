@@ -45,7 +45,7 @@ FlyingPiece::FlyingPiece(
 
 	splitterParts.reserve(shatterPieceData.size());
 	for (const auto& cp: shatterPieceData) {
-		if (guRNG.NextFloat() > _pieceParams.x)
+		if (guRNG.NextFloat() > _pieceParams.y)
 			continue;
 
 		const float3 flyDir = (cp.dir + (guRNG.NextVector() * 0.3f)).ANormalize();
