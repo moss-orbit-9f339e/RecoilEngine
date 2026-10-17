@@ -223,7 +223,7 @@ void CUnitDrawerData::Update()
 
 	const float3 camPos = (camHandler->GetCurrentController()).GetPos();
 	const float3 camDir = (camHandler->GetCurrentController()).GetDir();
-	float dist = CGround::LineGroundCol(camPos, camDir * 150000.0f, false);
+	float dist = CGround::LineGroundCol(camPos, camDir, 150000.0f, false);
 	if (dist < 0)
 		dist = std::max(0.0f, CGround::LinePlaneCol(camPos, camDir, 150000.0f, readMap->GetCurrAvgHeight()));
 
