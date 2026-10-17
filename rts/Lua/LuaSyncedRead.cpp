@@ -456,7 +456,7 @@ static int GetSolidObjectLastHitPiece(lua_State* L, const CSolidObject* o)
 	const LocalModelPiece* lmp = o->hitModelPieces[true];
 	const S3DModelPiece* omp = lmp->original;
 
-	if (lua_isboolean(L, 1) && lua_toboolean(L, 1)) {
+	if (lua_isboolean(L, 2) && lua_toboolean(L, 2)) {
 		lua_pushnumber(L, lmp->GetLModelPieceIndex() + 1);
 	} else {
 		lua_pushsstring(L, omp->name);
@@ -5903,6 +5903,9 @@ int LuaSyncedRead::GetUnitLastAttacker(lua_State* L)
  *
  * @function Spring.GetUnitLastAttackedPiece
  * @param unitID UnitID
+ * @param returnIndex boolean? (Default: `false`) Return a 1-based piece index instead of its name.
+ * @return string|integer|nil piece Last hit piece name or index, or `nil` if unavailable.
+ * @return integer? frame Frame of the last piece hit.
  */
 int LuaSyncedRead::GetUnitLastAttackedPiece(lua_State* L)
 {
@@ -7261,8 +7264,9 @@ int LuaSyncedRead::GetFeatureResurrect(lua_State* L)
  *
  * @function Spring.GetFeatureLastAttackedPiece
  * @param featureID FeatureID
- * @return string|""|nil pieceName Last hit piece name
- * @return integer? frame frame it was last hit on, `nil` when featureID is not valid
+ * @param returnIndex boolean? (Default: `false`) Return a 1-based piece index instead of its name.
+ * @return string|integer|nil piece Last hit piece name or index, or `nil` if unavailable.
+ * @return integer? frame Frame of the last piece hit.
  */
 int LuaSyncedRead::GetFeatureLastAttackedPiece(lua_State* L)
 {
