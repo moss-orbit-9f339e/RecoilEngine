@@ -56,6 +56,12 @@ target_include_directories(monocypher PUBLIC
 	"${CMAKE_CURRENT_SOURCE_DIR}/monocypher/src/optional"
 )
 set_target_properties(monocypher PROPERTIES POSITION_INDEPENDENT_CODE ON)
+# zstd: required to read .sdzst archives (zip containers with zstd / method-93
+# entries). Sourced like the other third-party libs from the prebuilt
+# static-libs / mingwlibs bundle.
+find_package_static(Zstd REQUIRED)
+set_global(SPRING_ZSTD_INCLUDE_DIR "${ZSTD_INCLUDE_DIR}")
+set_global(SPRING_ZSTD_LIBRARY "${ZSTD_LIBRARY}")
 
 ADD_SUBDIRECTORY(nowide)
 ADD_SUBDIRECTORY(headlessStubs)
