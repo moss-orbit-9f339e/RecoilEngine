@@ -148,6 +148,8 @@ void CFeatureDrawerData::UpdateObjectDrawFlags(CSolidObject* o) const
 				if (!f->alphaFade) {
 					f->SetDrawFlag(DrawFlags::SO_OPAQUE_FLAG);
 					f->drawAlpha = 1.0f;
+					if (f->IsInWater())
+						f->AddDrawFlag(DrawFlags::SO_REFRAC_FLAG);
 					continue;
 				}
 
