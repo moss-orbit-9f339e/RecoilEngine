@@ -817,13 +817,13 @@ void CBumpWater::UpdateDynWaves(const bool initialize)
 		return;
 
 	const unsigned char tiles  = waterRendering->numTiles; // (numTiles <= 16)
-	const unsigned char ntiles = tiles * tiles;
+	const unsigned int ntiles = tiles * tiles;
 
 	const float tilesize = 1.0f / tiles;
 	const int modFrameNum = (gs->frameNum + 1) % 60;
 
 	if (modFrameNum == 0) {
-		for (unsigned char i = 0; i < ntiles; ++i) {
+		for (unsigned int i = 0; i < ntiles; ++i) {
 			do {
 				tileOffsets[i] = (unsigned char)(guRNG.NextFloat()*ntiles);
 			} while (tileOffsets[i] == i);
