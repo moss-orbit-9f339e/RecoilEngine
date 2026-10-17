@@ -75,7 +75,7 @@ static std::array<moodycamel::ConcurrentQueue<ITaskGroup*>, ThreadPool::MAX_THRE
 #endif
 
 static std::vector<void*> workerThreads[2];
-static std::array<bool, ThreadPool::MAX_THREADS> exitFlags;
+static std::array<std::atomic_bool, ThreadPool::MAX_THREADS> exitFlags{};
 static std::array<ThreadStats, ThreadPool::MAX_THREADS> threadStats[2];
 static spring::signal newTasksSignal[2];
 
