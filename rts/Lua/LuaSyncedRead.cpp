@@ -2518,7 +2518,7 @@ static bool PushVisibleUnits(
 	unsigned int* unitCount,
 	unsigned int* defCount
 ) {
-	bool createdTable = false;
+	bool createdTable = (*unitCount > 1);
 
 	for (const CUnit* unit: defUnits) {
 		if (!LuaUtils::IsUnitVisible(L, unit))
