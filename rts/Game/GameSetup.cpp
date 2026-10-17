@@ -290,7 +290,7 @@ void CGameSetup::LoadStartPositions(bool withoutMap)
 		// game handle the missing startpos
 		if (!mapParser.GetStartPos(teamStartingData[teamNum].teamStartNum, pos)) {
 			LOG_L(L_WARNING, "%s", mapParser.GetErrorLog().c_str());
-			return false;
+			return true;
 		}
 
 		// map should ensure positions are valid
