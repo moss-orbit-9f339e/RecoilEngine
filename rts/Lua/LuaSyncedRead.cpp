@@ -2785,7 +2785,10 @@ int LuaSyncedRead::GetTeamUnitsByDefs(lua_State* L)
 	bool isCalledFromSynced = CLuaHandle::GetHandleSynced(L);
 
 	for (const int unitDefID: gtuObjectIDs) {
-		for (const CUnit* unit: unitHandler.GetUnitsByTeam(teamID)) {
+		const auto& candidates = (allied && !isCalledFromSynced)
+			? unitHandler.GetUnitsByTeamAndDef(teamID, unitDefID)
+			: unitHandler.GetUnitsByTeam(teamID);
+		for (const CUnit* unit: candidates) {
 			if (!allied && !LuaUtils::IsUnitTyped(L, unit))
 				continue;
 
