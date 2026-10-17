@@ -598,6 +598,7 @@ void CSMFGroundTextures::LoadSquareTexturePersistent(int x, int y)
 
 	//skip pbo, makes little sense here
 
+	glDeleteTextures(1, square->GetTextureIDPtr());
 	glGenTextures(1, square->GetTextureIDPtr());
 	glBindTexture(ttarget, square->GetTextureID());
 
