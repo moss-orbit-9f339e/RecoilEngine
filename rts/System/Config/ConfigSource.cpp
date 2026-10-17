@@ -102,6 +102,8 @@ void FileConfigSource::ReadModifyWrite(std::function<void ()> modify) {
 		Read(file);
 		modify();
 		Write(file);
+		if (fflush(file) != 0)
+			LOG_L(L_ERROR, "ConfigSource: Error: Could not flush config file.");
 	}
 	else {
 		modify();
