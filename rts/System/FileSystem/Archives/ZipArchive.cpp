@@ -142,10 +142,15 @@ IArchive::SFileInfo CZipArchive::FileInfo(uint32_t fid) const
 // rejects them in its open path, so we locate the raw frame directly from the
 // zip headers and decompress it with libzstd. The entry's central-directory
 // position is the unz_file_pos minizip already gave us when scanning.
-int CZipArchive::GetFileZstd(uint32_t fid, uint64_t compressedSize, uint64_t uncompressedSize, std::vector<std::uint8_t>& buffer)
+int CZipArchive::GetFileZstd(uint32_t fid, uint32_t tnum, uint64_t compressedSize, uint64_t uncompressedSize, std::vector<std::uint8_t>& buffer)
 {
-	std::ifstream f(GetArchiveFile(), std::ios::binary);
-	if (!f)
+	// keep one stream per parallel reader open, instead of opening the archive for every entry
+	auto& stream = zstdStreamPerThread[tnum];
+	if (!stream)
+		stream = std::make_unique<std::ifstream>(GetArchiveFile(), std::ios::binary);
+	std::ifstream& f = *stream;
+	f.clear();
+	if (!f.is_open())
 		return -4;
 
 	// Central directory file header (46-byte fixed part) for this entry.
@@ -209,7 +214,9 @@ int CZipArchive::GetFileZstd(uint32_t fid, uint64_t compressedSize, uint64_t unc
 	buffer.clear();
 	buffer.resize(uncompressedSize);
 
-	const size_t dSize = ZSTD_decompress(
+	// reuse one decompression context per thread
+	static thread_local std::unique_ptr<ZSTD_DCtx, decltype(&ZSTD_freeDCtx)> dctx{ZSTD_createDCtx(), &ZSTD_freeDCtx};
+	const size_t dSize = ZSTD_decompressDCtx(dctx.get(),
 		buffer.empty() ? nullptr : buffer.data(), buffer.size(),
 		compressed.empty() ? nullptr : compressed.data(), compressed.size());
 	if (ZSTD_isError(dSize) || dSize != buffer.size()) {
@@ -261,7 +268,7 @@ int CZipArchive::GetFileImpl(uint32_t fid, std::vector<std::uint8_t>& buffer)
 	// entirely: locate the raw frame via the zip headers and decompress it
 	// ourselves (see GetFileZstd).
 	if (fi.compression_method == ZIP_METHOD_ZSTD)
-		return GetFileZstd(fid, fi.compressed_size, fi.uncompressed_size, buffer);
+		return GetFileZstd(fid, tnum, fi.compressed_size, fi.uncompressed_size, buffer);
 
 	if (unzOpenCurrentFile(thisThreadZip) != UNZ_OK)
 		return -3;

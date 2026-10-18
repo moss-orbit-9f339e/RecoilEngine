@@ -8,6 +8,8 @@
 #include "minizip/unzip.h"
 #include "System/Threading/AtomicFirstIndex.hpp"
 
+#include <fstream>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -64,12 +66,14 @@ public:
 protected:
 	int GetFileImpl(uint32_t fid, std::vector<std::uint8_t>& buffer) override;
 private:
-	int GetFileZstd(uint32_t fid, uint64_t compressedSize, uint64_t uncompressedSize, std::vector<std::uint8_t>& buffer);
+	int GetFileZstd(uint32_t fid, uint32_t tnum, uint64_t compressedSize, uint64_t uncompressedSize, std::vector<std::uint8_t>& buffer);
 
 	static constexpr int MAX_THREADS = 32;
 
 	Recoil::AtomicFirstIndex<uint32_t> afi;
 	std::array<unzFile, MAX_THREADS> zipPerThread = {nullptr};
+	// raw streams for zstd (method 93) entries, one per parallel reader like zipPerThread
+	std::array<std::unique_ptr<std::ifstream>, MAX_THREADS> zstdStreamPerThread;
 
 	// actual data is in BufferedArchive
 	struct FileEntry {
