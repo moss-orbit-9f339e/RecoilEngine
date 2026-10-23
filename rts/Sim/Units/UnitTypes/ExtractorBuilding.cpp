@@ -21,7 +21,8 @@ CR_REG_METADATA(CExtractorBuilding, (
 	CR_MEMBER(extractionRange),
 	CR_MEMBER(extractionDepth),
 	CR_MEMBER(metalAreaOfControl),
-	CR_MEMBER(neighbours)
+	CR_MEMBER(neighbours),
+	CR_POSTLOAD(PostLoad)
 ))
 
 CR_BIND(CExtractorBuilding::MetalSquareOfControl, )
@@ -32,12 +33,16 @@ CR_REG_METADATA_SUB(CExtractorBuilding,MetalSquareOfControl, (
 	CR_MEMBER(extractionDepth)
 ))
 
-// TODO: How are class statics incorporated into creg?
 float CExtractorBuilding::maxExtractionRange = 0.0f;
 
 CExtractorBuilding::~CExtractorBuilding()
 {
 	ResetExtraction();
+}
+
+void CExtractorBuilding::PostLoad()
+{
+	maxExtractionRange = std::max(extractionRange, maxExtractionRange);
 }
 
 void CExtractorBuilding::PreInit(const UnitLoadParams& params)

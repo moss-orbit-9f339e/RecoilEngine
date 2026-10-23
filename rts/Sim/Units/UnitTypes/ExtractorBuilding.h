@@ -1,7 +1,6 @@
 /* This file is part of the Spring engine (GPL v2 or later), see LICENSE.html */
 
-#ifndef _EXTRACTOR_BUILDING_H
-#define _EXTRACTOR_BUILDING_H
+#pragma once
 
 #include <vector>
 
@@ -18,6 +17,7 @@ public:
 	}
 	~CExtractorBuilding();
 
+	void PostLoad();
 	void PreInit(const UnitLoadParams& params) override;
 
 	void ResetExtraction();
@@ -48,4 +48,3 @@ protected:
 	static float maxExtractionRange;
 };
 
-#endif // _EXTRACTOR_BUILDING_H
